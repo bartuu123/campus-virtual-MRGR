@@ -132,7 +132,7 @@ export default function LoginPage() {
             </div>
             <div className="flex items-center gap-3 text-xs font-medium text-emerald-100">
               <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Recepción digital y calificación con escala vigesimal (0 a 20)</span>
+              <span>Recepción y calificación de tareas escolares </span>
             </div>
             <div className="flex items-center gap-3 text-xs font-medium text-emerald-100">
               <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
@@ -143,7 +143,7 @@ export default function LoginPage() {
 
         {/* Pie del panel izquierdo */}
         <div className="relative z-10 pt-4 border-t border-emerald-800/80 text-[11px] text-emerald-300 flex items-center justify-between">
-          <span>Colegio Emblemático INA 52</span>
+          <span>Colegio con formación Técnica</span>
           <span>Año Académico 2026</span>
         </div>
       </div>
