@@ -3,18 +3,24 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { 
   ArrowLeft, 
+  Award,
   BookOpen, 
+  Calendar,
   CheckCircle2, 
   ChevronDown, 
   ChevronRight, 
   Clock, 
+  ExternalLink,
   FileText, 
   FolderPlus, 
+  GraduationCap,
   Link as LinkIcon, 
   Plus, 
+  Sparkles,
   Trash2, 
   UploadCloud, 
   User, 
@@ -148,39 +154,20 @@ export default function CourseDetailPage() {
     setOpenModuleIds((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  // Eliminar Tema / Lección
   const handleDeleteLesson = async (lessonId: string, title: string) => {
     if (!confirm(`¿Eliminar el tema "${title}"?`)) return
-
-    const { error } = await supabase
-      .from('lessons')
-      .delete()
-      .eq('id', lessonId)
-
-    if (error) {
-      alert('Error al eliminar: ' + error.message)
-    } else {
-      await loadCourseDetails()
-    }
+    const { error } = await supabase.from('lessons').delete().eq('id', lessonId)
+    if (error) alert('Error al eliminar: ' + error.message)
+    else await loadCourseDetails()
   }
 
-  // Eliminar Unidad / Módulo
   const handleDeleteModule = async (moduleId: string, title: string) => {
     if (!confirm(`¿Eliminar la unidad "${title}" y todo su material interno?`)) return
-
-    const { error } = await supabase
-      .from('modules')
-      .delete()
-      .eq('id', moduleId)
-
-    if (error) {
-      alert('Error al eliminar unidad: ' + error.message)
-    } else {
-      await loadCourseDetails()
-    }
+    const { error } = await supabase.from('modules').delete().eq('id', moduleId)
+    if (error) alert('Error al eliminar unidad: ' + error.message)
+    else await loadCourseDetails()
   }
 
-  // Guardar Módulo
   const handleCreateModule = async (e: React.FormEvent) => {
     e.preventDefault()
     const { error } = await supabase.from('modules').insert({
@@ -201,7 +188,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  // Guardar Lección
   const handleCreateLesson = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedModuleId) return
@@ -224,7 +210,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  // Guardar Tarea
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault()
     const { error } = await supabase.from('assignments').insert({
@@ -247,7 +232,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  // Subir Entrega
   const handleSubmitWork = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAssignForSubmit || !currentUser) return
@@ -273,7 +257,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  // Calificar
   const handleSaveGrade = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedSubmission) return
@@ -291,7 +274,7 @@ export default function CourseDetailPage() {
     if (error) {
       alert('Error al calificar: ' + error.message)
     } else {
-      alert('Calificación guardada.')
+      alert('Calificación guardada correctamente.')
       setIsGradingModalOpen(false)
       setGradeScore('')
       setGradeFeedback('')
@@ -299,7 +282,6 @@ export default function CourseDetailPage() {
     }
   }
 
-  // Matricular
   const handleEnrollStudent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedStudentIdToEnroll) return
@@ -322,107 +304,167 @@ export default function CourseDetailPage() {
     if (error) {
       alert('Error al matricular: ' + error.message)
     } else {
-      alert('Estudiante matriculado.')
+      alert('Estudiante matriculado con éxito.')
       setIsEnrollModalOpen(false)
       setSelectedStudentIdToEnroll('')
       await loadCourseDetails()
     }
   }
 
-  // Desmatricular
   const handleUnenroll = async (enrollmentId: string) => {
     if (!confirm('¿Retirar a este estudiante del curso?')) return
 
-    const { error } = await supabase
-      .from('enrollments')
-      .delete()
-      .eq('id', enrollmentId)
-
-    if (error) {
-      alert('Error al retirar: ' + error.message)
-    } else {
-      await loadCourseDetails()
-    }
+    const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId)
+    if (error) alert('Error al retirar: ' + error.message)
+    else await loadCourseDetails()
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600 font-medium">
-        Cargando aula virtual...
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-emerald-800 font-semibold text-sm">
+        Cargando aula virtual MRGR...
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 font-sans pb-16">
+      {/* Barra superior institucional */}
+      <header className="bg-white border-b-2 border-emerald-700 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-slate-500 hover:text-slate-800 transition">
+            <Link 
+              href="/" 
+              className="p-2.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 rounded-xl transition cursor-pointer"
+              title="Volver a Mis Cursos"
+            >
               <ArrowLeft className="w-5 h-5" />
             </Link>
+
+            <div className="relative w-10 h-12 shrink-0 hidden sm:block">
+              <Image 
+                src="/logo-mrgr.png" 
+                alt="Insignia MRGR" 
+                fill 
+                className="object-contain"
+                priority
+              />
+            </div>
+
             <div>
-              <h1 className="text-base font-bold text-slate-800 leading-none">{course?.title}</h1>
-              <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">{course?.code}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black tracking-widest bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded uppercase">
+                  {course?.code}
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  Año {course?.academic_period}
+                </span>
+              </div>
+              <h1 className="text-base font-extrabold text-slate-800 leading-tight">
+                {course?.title}
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-semibold text-slate-700">
-            <User className="w-4 h-4 text-slate-500" />
-            <span>{userProfile?.first_name || userProfile?.email}</span>
-            <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase text-[10px]">
-              {userProfile?.role === 'teacher' ? 'Docente' : 'Estudiante'}
-            </span>
+          <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-slate-700">
+            <div className="w-7 h-7 bg-emerald-700 text-white rounded-lg flex items-center justify-center font-bold text-xs">
+              {userProfile?.first_name?.[0] || 'U'}
+            </div>
+            <div className="text-left hidden sm:block">
+              <p className="text-xs font-bold text-slate-800 leading-none">
+                {userProfile?.first_name} {userProfile?.last_name}
+              </p>
+              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
+                {userProfile?.role === 'teacher' ? 'Docente' : 'Estudiante'}
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex border-b border-slate-200 mb-6 gap-6">
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Banner Informativo del Curso */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 rounded-3xl p-7 text-white shadow-md mb-8 border-b-4 border-amber-400">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-600/40 text-amber-300 text-xs font-bold mb-2">
+                <Sparkles className="w-3.5 h-3.5" />
+                Aula Virtual Oficial — I.E. Mauro R. Giraldo Romero
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black tracking-tight">{course?.title}</h2>
+              <p className="text-emerald-100 text-xs md:text-sm mt-1 max-w-2xl font-normal">
+                {course?.description || 'Espacio pedagógico para el desarrollo de competencias curriculares.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 self-start md:self-center">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-2xl text-center">
+                <span className="block text-[10px] uppercase font-bold text-amber-300">Unidades</span>
+                <span className="text-lg font-black">{modules.length}</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-2xl text-center">
+                <span className="block text-[10px] uppercase font-bold text-amber-300">Tareas</span>
+                <span className="text-lg font-black">{assignments.length}</span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-2xl text-center">
+                <span className="block text-[10px] uppercase font-bold text-amber-300">Alumnos</span>
+                <span className="text-lg font-black">{enrolledStudents.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pestañas de Navegación */}
+        <div className="flex border-b border-slate-200 mb-8 gap-4 sm:gap-8 overflow-x-auto">
           <button
             onClick={() => setActiveTab('content')}
-            className={`pb-3 text-sm font-semibold transition cursor-pointer border-b-2 ${
+            className={`pb-3.5 text-xs sm:text-sm font-bold transition cursor-pointer border-b-2 flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'content'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-emerald-700 text-emerald-800'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Contenido y Módulos ({modules.length})
+            <BookOpen className="w-4 h-4 text-emerald-600" />
+            Contenido y Unidades ({modules.length})
           </button>
+
           <button
             onClick={() => setActiveTab('assignments')}
-            className={`pb-3 text-sm font-semibold transition cursor-pointer border-b-2 ${
+            className={`pb-3.5 text-xs sm:text-sm font-bold transition cursor-pointer border-b-2 flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'assignments'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-emerald-700 text-emerald-800'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
+            <FileText className="w-4 h-4 text-amber-500" />
             Tareas y Evaluaciones ({assignments.length})
           </button>
+
           <button
             onClick={() => setActiveTab('students')}
-            className={`pb-3 text-sm font-semibold transition cursor-pointer border-b-2 ${
+            className={`pb-3.5 text-xs sm:text-sm font-bold transition cursor-pointer border-b-2 flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'students'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-emerald-700 text-emerald-800'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Estudiantes Matriculados ({enrolledStudents.length})
+            <Users className="w-4 h-4 text-teal-600" />
+            Nómina de Estudiantes ({enrolledStudents.length})
           </button>
         </div>
 
-        {/* PESTAÑA: CONTENIDO Y MÓDULOS */}
+        {/* PESTAÑA 1: CONTENIDO Y UNIDADES */}
         {activeTab === 'content' && (
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Unidades de Aprendizaje</h3>
-                <p className="text-xs text-slate-500">Planificación de clases, recursos y lecturas</p>
+                <p className="text-xs text-slate-500">Planificación de clases, material de estudio y recursos</p>
               </div>
               {userProfile?.role === 'teacher' && (
                 <button
                   onClick={() => setIsModuleModalOpen(true)}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition cursor-pointer shadow-sm"
+                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
                 >
                   <FolderPlus className="w-4 h-4" />
                   Nueva Unidad
@@ -431,39 +473,41 @@ export default function CourseDetailPage() {
             </div>
 
             {modules.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-700">No hay unidades creadas en este curso.</p>
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
+                <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">No hay unidades didácticas creadas</h4>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Estructura las sesiones y material de clase por unidades temáticas.</p>
                 {userProfile?.role === 'teacher' && (
                   <button
                     onClick={() => setIsModuleModalOpen(true)}
-                    className="bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold px-3 py-2 rounded-lg transition cursor-pointer mt-3"
+                    className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-emerald-200"
                   >
-                    Agregar primera unidad
+                    Crear primera unidad
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {modules.map((mod, idx) => {
                   const isOpen = !!openModuleIds[mod.id]
                   return (
-                    <div key={mod.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div key={mod.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:border-slate-300 transition">
+                      {/* Cabecera de la Unidad */}
                       <div 
                         onClick={() => toggleModule(mod.id)}
-                        className="flex items-center justify-between p-4 bg-slate-50/70 hover:bg-slate-50 cursor-pointer transition border-b border-slate-200"
+                        className="flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-slate-50 to-white hover:bg-slate-50 cursor-pointer transition border-b border-slate-100"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-xs">
+                        <div className="flex items-center gap-3.5">
+                          <span className="w-8 h-8 bg-emerald-700 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-sm">
                             {idx + 1}
                           </span>
                           <div>
-                            <h4 className="text-sm font-bold text-slate-800">{mod.title}</h4>
+                            <h4 className="text-sm font-extrabold text-slate-800">{mod.title}</h4>
                             <p className="text-xs text-slate-500">{mod.description || 'Sin descripción adicional'}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           {userProfile?.role === 'teacher' && (
                             <>
                               <button
@@ -473,9 +517,9 @@ export default function CourseDetailPage() {
                                   setSelectedModuleId(mod.id)
                                   setIsLessonModalOpen(true)
                                 }}
-                                className="flex items-center gap-1 text-[11px] font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 px-2.5 py-1 rounded-md transition"
+                                className="flex items-center gap-1.5 text-[11px] font-bold bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-xl transition shadow-2xs"
                               >
-                                <Plus className="w-3 h-3 text-blue-600" />
+                                <Plus className="w-3.5 h-3.5 text-emerald-600" />
                                 Agregar Tema
                               </button>
                               <button
@@ -484,7 +528,7 @@ export default function CourseDetailPage() {
                                   e.stopPropagation()
                                   handleDeleteModule(mod.id, mod.title)
                                 }}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
+                                className="text-slate-300 hover:text-red-600 p-1.5 rounded-lg transition hover:bg-red-50"
                                 title="Eliminar Unidad"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -495,29 +539,37 @@ export default function CourseDetailPage() {
                         </div>
                       </div>
 
-                      {/* Lista de Temas */}
+                      {/* Lista de Temas / Materiales */}
                       {isOpen && (
-                        <div className="p-4 bg-white divide-y divide-slate-100">
+                        <div className="p-4 sm:p-6 bg-white divide-y divide-slate-100">
                           {mod.lessons && mod.lessons.length > 0 ? (
                             mod.lessons.map((lesson: any) => (
-                              <div key={lesson.id} className="py-3 flex items-start justify-between gap-4 group">
-                                <div className="flex items-start gap-3">
-                                  {lesson.content_type === 'video' && <Video className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}
-                                  {lesson.content_type === 'pdf' && <FileText className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />}
-                                  {lesson.content_type === 'link' && <LinkIcon className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />}
-                                  {lesson.content_type === 'text' && <BookOpen className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />}
+                              <div key={lesson.id} className="py-4 first:pt-0 last:pb-0 flex items-start justify-between gap-4 group">
+                                <div className="flex items-start gap-3.5 max-w-4xl">
+                                  <div className="mt-0.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                                    {lesson.content_type === 'video' && <Video className="w-4 h-4 text-red-600" />}
+                                    {lesson.content_type === 'pdf' && <FileText className="w-4 h-4 text-amber-600" />}
+                                    {lesson.content_type === 'link' && <LinkIcon className="w-4 h-4 text-emerald-600" />}
+                                    {lesson.content_type === 'text' && <BookOpen className="w-4 h-4 text-teal-600" />}
+                                  </div>
 
                                   <div>
-                                    <h5 className="text-xs font-bold text-slate-800">{lesson.title}</h5>
-                                    <p className="text-xs text-slate-600 mt-1 whitespace-pre-line">{lesson.content}</p>
+                                    <div className="flex items-center gap-2">
+                                      <h5 className="text-xs font-bold text-slate-900">{lesson.title}</h5>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                        {lesson.content_type}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-slate-600 mt-1.5 whitespace-pre-line leading-relaxed">
+                                      {lesson.content}
+                                    </p>
                                   </div>
                                 </div>
 
-                                {/* Botón de eliminar tema (Docente) */}
                                 {userProfile?.role === 'teacher' && (
                                   <button
                                     onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
-                                    className="text-slate-300 hover:text-red-500 p-1 rounded transition group-hover:opacity-100 cursor-pointer"
+                                    className="text-slate-300 hover:text-red-600 p-1.5 rounded-lg transition hover:bg-red-50 cursor-pointer opacity-80 group-hover:opacity-100"
                                     title="Eliminar Tema"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -526,7 +578,7 @@ export default function CourseDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-xs text-slate-400 text-center py-4">
+                            <p className="text-xs text-slate-400 text-center py-5 italic">
                               No hay materiales agregados en esta unidad aún.
                             </p>
                           )}
@@ -540,18 +592,18 @@ export default function CourseDetailPage() {
           </div>
         )}
 
-        {/* PESTAÑA: TAREAS */}
+        {/* PESTAÑA 2: TAREAS Y EVALUACIONES */}
         {activeTab === 'assignments' && (
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Tareas y Entregables</h3>
-                <p className="text-xs text-slate-500">Evaluaciones continuas del curso</p>
+                <h3 className="text-lg font-bold text-slate-800">Tareas y Evaluaciones</h3>
+                <p className="text-xs text-slate-500">Recepción de evidencias y calificación vigesimal (0 a 20)</p>
               </div>
               {userProfile?.role === 'teacher' && (
                 <button
                   onClick={() => setIsAssignmentModalOpen(true)}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition cursor-pointer shadow-sm"
+                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Crear Tarea
@@ -560,9 +612,18 @@ export default function CourseDetailPage() {
             </div>
 
             {assignments.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-700">No hay tareas programadas.</p>
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">No hay tareas programadas</h4>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Crea actividades y fija fechas límite para recibir las evidencias.</p>
+                {userProfile?.role === 'teacher' && (
+                  <button
+                    onClick={() => setIsAssignmentModalOpen(true)}
+                    className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-emerald-200"
+                  >
+                    Crear primera tarea
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-6">
@@ -570,38 +631,49 @@ export default function CourseDetailPage() {
                   const mySubmission = assign.submissions?.find((s: any) => s.student_id === currentUser?.id)
                   
                   return (
-                    <div key={assign.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div key={assign.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div>
-                          <h4 className="text-sm font-bold text-slate-800">{assign.title}</h4>
-                          <p className="text-xs text-slate-600 mt-1 max-w-xl">{assign.description}</p>
-                          <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 font-medium">
-                            <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded">
-                              Nota máx: <strong className="text-slate-800">{assign.max_score} pts</strong>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
+                              Evaluación
                             </span>
-                            <span className="flex items-center gap-1 text-red-600">
+                            <h4 className="text-sm font-extrabold text-slate-900">{assign.title}</h4>
+                          </div>
+
+                          <p className="text-xs text-slate-600 mt-2 max-w-2xl leading-relaxed">
+                            {assign.description}
+                          </p>
+
+                          <div className="flex items-center gap-4 mt-4 text-[11px] text-slate-500 font-semibold">
+                            <span className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-700">
+                              <Award className="w-3.5 h-3.5 text-amber-500" />
+                              Escala: <strong className="text-slate-900">{assign.max_score} pts</strong>
+                            </span>
+                            <span className="flex items-center gap-1.5 text-red-600 bg-red-50 px-2.5 py-1 rounded-lg">
                               <Clock className="w-3.5 h-3.5" />
                               Límite: {new Date(assign.due_date).toLocaleDateString()}
                             </span>
                           </div>
                         </div>
 
+                        {/* Panel Estudiante */}
                         {userProfile?.role === 'student' && (
                           <div>
                             {mySubmission ? (
-                              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-lg text-xs">
-                                <div className="flex items-center gap-1.5 font-bold mb-1">
+                              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-4 rounded-2xl text-xs min-w-[200px]">
+                                <div className="flex items-center gap-1.5 font-bold mb-1.5 text-emerald-800">
                                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                   Tarea Entregada
                                 </div>
                                 {mySubmission.grade !== null && (
-                                  <p className="font-semibold text-emerald-900 mt-1">
+                                  <p className="font-extrabold text-emerald-900 text-sm mt-1 bg-white p-2 rounded-xl border border-emerald-100 text-center">
                                     Nota: {mySubmission.grade} / {assign.max_score}
                                   </p>
                                 )}
                                 {mySubmission.feedback && (
-                                  <p className="text-[11px] text-emerald-700 italic mt-0.5">
-                                    Feedback: "{mySubmission.feedback}"
+                                  <p className="text-[11px] text-emerald-800 italic mt-2 bg-emerald-100/60 p-2 rounded-xl">
+                                    "{mySubmission.feedback}"
                                   </p>
                                 )}
                               </div>
@@ -611,7 +683,7 @@ export default function CourseDetailPage() {
                                   setSelectedAssignForSubmit(assign)
                                   setIsSubmitModalOpen(true)
                                 }}
-                                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition cursor-pointer shadow-sm"
+                                className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm"
                               >
                                 <UploadCloud className="w-4 h-4" />
                                 Entregar Tarea
@@ -621,35 +693,37 @@ export default function CourseDetailPage() {
                         )}
                       </div>
 
+                      {/* Panel de Entregas para Docente */}
                       {userProfile?.role === 'teacher' && (
-                        <div className="mt-5 pt-4 border-t border-slate-100">
-                          <h5 className="text-xs font-bold text-slate-700 mb-3">
-                            Entregas recibidas ({assign.submissions?.length || 0})
+                        <div className="mt-6 pt-5 border-t border-slate-100">
+                          <h5 className="text-xs font-extrabold text-slate-800 mb-3 flex items-center gap-2">
+                            <Users className="w-3.5 h-3.5 text-emerald-700" />
+                            Entregas Recibidas ({assign.submissions?.length || 0})
                           </h5>
                           {assign.submissions && assign.submissions.length > 0 ? (
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                               {assign.submissions.map((sub: any) => (
-                                <div key={sub.id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
+                                <div key={sub.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                                   <div>
-                                    <span className="font-bold text-slate-800">
-                                      {sub.profiles?.first_name || sub.profiles?.email || 'Estudiante'}
+                                    <span className="font-bold text-slate-900">
+                                      {sub.profiles?.first_name} {sub.profiles?.last_name || sub.profiles?.email}
                                     </span>
                                     <p className="text-slate-600 text-[11px] mt-0.5">{sub.content}</p>
                                     {sub.file_url && (
-                                      <a href={sub.file_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-[11px] block mt-0.5">
-                                        Ver archivo adjunto / enlace
+                                      <a href={sub.file_url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:text-emerald-900 underline text-[11px] font-semibold flex items-center gap-1 mt-1">
+                                        <ExternalLink className="w-3 h-3" /> Ver evidencia / enlace adjunto
                                       </a>
                                     )}
                                   </div>
 
                                   <div className="flex items-center gap-3">
                                     {sub.grade !== null ? (
-                                      <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded">
+                                      <span className="font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-lg">
                                         Nota: {sub.grade} pts
                                       </span>
                                     ) : (
-                                      <span className="text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
-                                        Pendiente
+                                      <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-semibold text-[11px]">
+                                        Sin calificar
                                       </span>
                                     )}
                                     <button
@@ -659,16 +733,16 @@ export default function CourseDetailPage() {
                                         setGradeFeedback(sub.feedback || '')
                                         setIsGradingModalOpen(true)
                                       }}
-                                      className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-3 py-1.5 rounded transition cursor-pointer"
+                                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-2xs"
                                     >
-                                      {sub.grade !== null ? 'Modificar Nota' : 'Calificar'}
+                                      {sub.grade !== null ? 'Editar Nota' : 'Calificar'}
                                     </button>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-xs text-slate-400 italic">Aún ningún estudiante ha enviado su entrega.</p>
+                            <p className="text-xs text-slate-400 italic py-2">Aún no hay entregas de estudiantes registradas.</p>
                           )}
                         </div>
                       )}
@@ -680,18 +754,18 @@ export default function CourseDetailPage() {
           </div>
         )}
 
-        {/* PESTAÑA: ESTUDIANTES */}
+        {/* PESTAÑA 3: NÓMINA DE ESTUDIANTES */}
         {activeTab === 'students' && (
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Nómina de Estudiantes</h3>
-                <p className="text-xs text-slate-500">Gestión de alumnos inscritos en esta sección</p>
+                <p className="text-xs text-slate-500">Control de matrícula e inscripción en la sección</p>
               </div>
               {userProfile?.role === 'teacher' && (
                 <button
                   onClick={() => setIsEnrollModalOpen(true)}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition cursor-pointer shadow-sm"
+                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" />
                   Matricular Estudiante
@@ -700,36 +774,45 @@ export default function CourseDetailPage() {
             </div>
 
             {enrolledStudents.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-700">No hay estudiantes matriculados todavía.</p>
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">No hay estudiantes inscritos en esta sección</h4>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Inscribe a los alumnos registrados para que tengan acceso al material.</p>
+                {userProfile?.role === 'teacher' && (
+                  <button
+                    onClick={() => setIsEnrollModalOpen(true)}
+                    className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-emerald-200"
+                  >
+                    Matricular primer estudiante
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
+                      <th className="p-4 pl-6">N°</th>
                       <th className="p-4">Estudiante</th>
                       <th className="p-4">Correo Institucional</th>
-                      <th className="p-4">Estado</th>
-                      <th className="p-4">Fecha de Matrícula</th>
-                      {userProfile?.role === 'teacher' && <th className="p-4 text-right">Acciones</th>}
+                      <th className="p-4">Condición</th>
+                      <th className="p-4">Fecha Inscripción</th>
+                      {userProfile?.role === 'teacher' && <th className="p-4 pr-6 text-right">Acción</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                    {enrolledStudents.map((enrollment) => (
-                      <tr key={enrollment.id} className="hover:bg-slate-50/50 transition">
-                        <td className="p-4 font-semibold flex items-center gap-2">
-                          <div className="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-xs">
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                    {enrolledStudents.map((enrollment, idx) => (
+                      <tr key={enrollment.id} className="hover:bg-slate-50/60 transition">
+                        <td className="p-4 pl-6 font-bold text-slate-400">{idx + 1}</td>
+                        <td className="p-4 font-bold flex items-center gap-2.5 text-slate-800">
+                          <div className="w-7 h-7 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-xs">
                             {enrollment.profiles?.first_name?.[0] || 'E'}
                           </div>
-                          <span>
-                            {enrollment.profiles?.first_name} {enrollment.profiles?.last_name}
-                          </span>
+                          <span>{enrollment.profiles?.first_name} {enrollment.profiles?.last_name}</span>
                         </td>
                         <td className="p-4 text-slate-500">{enrollment.profiles?.email}</td>
                         <td className="p-4">
-                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[11px] font-medium">
+                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
                             {enrollment.status || 'Activo'}
                           </span>
                         </td>
@@ -737,10 +820,10 @@ export default function CourseDetailPage() {
                           {new Date(enrollment.created_at).toLocaleDateString()}
                         </td>
                         {userProfile?.role === 'teacher' && (
-                          <td className="p-4 text-right">
+                          <td className="p-4 pr-6 text-right">
                             <button
                               onClick={() => handleUnenroll(enrollment.id)}
-                              className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                              className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
                               title="Retirar estudiante"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -757,21 +840,23 @@ export default function CourseDetailPage() {
         )}
       </main>
 
-      {/* MODALES */}
+      {/* MODAL: MATRICULAR ESTUDIANTE */}
       {isEnrollModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Matricular Estudiante</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-1">Matricular Estudiante</h3>
+            <p className="text-xs text-slate-500 mb-4">Selecciona al alumno para concederle acceso al aula virtual:</p>
+
             <form onSubmit={handleEnrollStudent} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Seleccionar Alumno</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Alumno Registrado</label>
                 <select
                   required
                   value={selectedStudentIdToEnroll}
                   onChange={(e) => setSelectedStudentIdToEnroll(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:border-emerald-600 focus:outline-none"
                 >
-                  <option value="">-- Elige un estudiante --</option>
+                  <option value="">-- Selecciona un alumno --</option>
                   {availableStudents.map((st) => (
                     <option key={st.id} value={st.id}>
                       {st.first_name} {st.last_name} ({st.email})
@@ -780,17 +865,17 @@ export default function CourseDetailPage() {
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEnrollModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Confirmar Matrícula
                 </button>
@@ -800,42 +885,44 @@ export default function CourseDetailPage() {
         </div>
       )}
 
+      {/* MODAL: CREAR UNIDAD */}
       {isModuleModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Nueva Unidad o Módulo</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-3">Nueva Unidad de Aprendizaje</h3>
             <form onSubmit={handleCreateModule} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Título de la Unidad</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Título de la Unidad</label>
                 <input
                   type="text"
                   required
                   placeholder="ej. Unidad 1: Álgebra y Ecuaciones"
                   value={moduleTitle}
                   onChange={(e) => setModuleTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Descripción / Objetivos</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Descripción / Objetivos</label>
                 <textarea
                   rows={3}
+                  placeholder="Capacidades y propósitos de la unidad..."
                   value={moduleDesc}
                   onChange={(e) => setModuleDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModuleModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Guardar Unidad
                 </button>
@@ -845,55 +932,58 @@ export default function CourseDetailPage() {
         </div>
       )}
 
+      {/* MODAL: AGREGAR TEMA */}
       {isLessonModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Agregar Material a la Unidad</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-3">Agregar Material a la Unidad</h3>
             <form onSubmit={handleCreateLesson} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Título del Tema</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Título de la Sesión / Tema</label>
                 <input
                   type="text"
                   required
+                  placeholder="ej. Clase 1: Introducción a los métodos"
                   value={lessonTitle}
                   onChange={(e) => setLessonTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Recurso</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tipo de Recurso</label>
                 <select
                   value={lessonType}
                   onChange={(e: any) => setLessonType(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:border-emerald-600 focus:outline-none"
                 >
                   <option value="text">Texto / Guía Teórica</option>
-                  <option value="video">Video (Enlace YouTube / Drive)</option>
+                  <option value="video">Video (YouTube / Google Drive)</option>
                   <option value="pdf">Documento PDF / Ficha</option>
-                  <option value="link">Enlace Externo</option>
+                  <option value="link">Enlace Web Externo</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Contenido o Enlace URL</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Contenido o Enlace URL</label>
                 <textarea
                   rows={4}
                   required
+                  placeholder="Escribe la explicación o pega la URL del material..."
                   value={lessonContent}
                   onChange={(e) => setLessonContent(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsLessonModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Publicar Material
                 </button>
@@ -903,62 +993,65 @@ export default function CourseDetailPage() {
         </div>
       )}
 
+      {/* MODAL: CREAR TAREA */}
       {isAssignmentModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Programar Nueva Tarea</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-3">Programar Nueva Tarea</h3>
             <form onSubmit={handleCreateAssignment} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Título de la Tarea</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Título de la Actividad</label>
                 <input
                   type="text"
                   required
+                  placeholder="ej. Práctica Calificada N° 1"
                   value={assignTitle}
                   onChange={(e) => setAssignTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Instrucciones</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Instrucciones y Criterios</label>
                 <textarea
                   rows={3}
+                  placeholder="Detalles sobre lo que debe presentar el alumno..."
                   value={assignDesc}
                   onChange={(e) => setAssignDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Límite</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Fecha Límite</label>
                   <input
                     type="date"
                     required
                     value={assignDueDate}
                     onChange={(e) => setAssignDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Puntaje Máximo</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Puntaje Máximo</label>
                   <input
                     type="number"
                     value={assignMaxScore}
                     onChange={(e) => setAssignMaxScore(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-bold focus:bg-white focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssignmentModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Guardar Tarea
                 </button>
@@ -968,43 +1061,44 @@ export default function CourseDetailPage() {
         </div>
       )}
 
+      {/* MODAL: ENTREGAR TAREA (ESTUDIANTE) */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Entregar Actividad</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-1">Entregar Evidencia</h3>
             <p className="text-xs text-slate-500 mb-4">{selectedAssignForSubmit?.title}</p>
             <form onSubmit={handleSubmitWork} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Comentarios / Respuesta</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Comentario / Respuesta</label>
                 <textarea
                   rows={3}
-                  placeholder="Detalles sobre tu entrega..."
+                  placeholder="Escribe detalles sobre tu entrega..."
                   value={submissionContent}
                   onChange={(e) => setSubmissionContent(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Enlace al Archivo / Trabajo</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Enlace a Google Drive o Documento</label>
                 <input
                   type="url"
                   placeholder="https://drive.google.com/..."
                   value={submissionLink}
                   onChange={(e) => setSubmissionLink(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsSubmitModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Enviar Entrega
                 </button>
@@ -1014,49 +1108,52 @@ export default function CourseDetailPage() {
         </div>
       )}
 
+      {/* MODAL: CALIFICAR (DOCENTE) */}
       {isGradingModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Calificar Entrega</h3>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-1">Calificar Evidencia</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Alumno: {selectedSubmission?.profiles?.first_name || 'Estudiante'}
+              Estudiante: <strong className="text-slate-800">{selectedSubmission?.profiles?.first_name} {selectedSubmission?.profiles?.last_name}</strong>
             </p>
             <form onSubmit={handleSaveGrade} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nota (0 - 20)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Calificación (Escala Vigesimal 0 - 20)</label>
                 <input
                   type="number"
                   step="0.1"
                   min="0"
                   max="20"
                   required
+                  placeholder="18"
                   value={gradeScore}
                   onChange={(e) => setGradeScore(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 font-bold"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-emerald-800 font-black focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Retroalimentación / Observaciones</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Retroalimentación Pedagógica</label>
                 <textarea
                   rows={3}
+                  placeholder="Comentarios formativos sobre el trabajo..."
                   value={gradeFeedback}
                   onChange={(e) => setGradeFeedback(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsGradingModalOpen(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold cursor-pointer text-slate-600"
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
-                  Guardar Calificación
+                  Guardar Nota
                 </button>
               </div>
             </form>
