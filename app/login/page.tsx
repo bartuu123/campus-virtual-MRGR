@@ -2,201 +2,278 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
-import { BookOpen, GraduationCap, Lock, Mail, User } from 'lucide-react'
+import { 
+  Award, 
+  BookOpen, 
+  CheckCircle2, 
+  GraduationCap, 
+  Lock, 
+  Mail, 
+  ShieldCheck, 
+  Sparkles, 
+  UserCheck 
+} from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [isRegister, setIsRegister] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [role, setRole] = useState<'student' | 'teacher'>('student')
+  const [role, setRole] = useState<'teacher' | 'student'>('student')
   const [loading, setLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
 
+  // Función para iniciar sesión o registrarse
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setErrorMessage('')
+    setErrorMsg('')
 
-    try {
-      if (isRegister) {
-        // Registro de nuevo usuario
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              first_name: firstName,
-              last_name: lastName,
-              role: role,
-            },
-          },
-        })
-        if (error) throw error
-        alert('Cuenta creada exitosamente. Ya puedes iniciar sesión.')
-        setIsRegister(false)
+    if (isRegistering) {
+      // Registro
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            role: role
+          }
+        }
+      })
+
+      if (error) {
+        setErrorMsg('Error al registrarse: ' + error.message)
       } else {
-        // Inicio de sesión
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (error) throw error
+        // Asegurar que el perfil se inserte o actualice en la tabla 'profiles'
+        if (data.user) {
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            email: email.trim(),
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            role: role
+          })
+        }
         router.push('/')
       }
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Ocurrió un error al procesar la solicitud.')
-    } finally {
-      setLoading(false)
+    } else {
+      // Login
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim()
+      })
+
+      if (error) {
+        setErrorMsg('Credenciales incorrectas: ' + error.message)
+      } else {
+        router.push('/')
+      }
     }
+
+    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
-        
-        {/* Cabecera / Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-md">
-            <GraduationCap className="w-9 h-9" />
+    <div className="min-h-screen flex flex-col md:flex-row bg-slate-900 font-sans">
+      {/* PANEL IZQUIERDO: Branding Institucional (Impacto Visual para Dirección) */}
+      <div className="md:w-1/2 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 p-8 md:p-14 flex flex-col justify-between relative overflow-hidden text-white border-b-4 md:border-b-0 md:border-r-4 border-amber-400">
+        {/* Adorno visual de fondo */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Cabecera del panel izquierdo */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="relative w-14 h-16 shrink-0 drop-shadow-md">
+            <Image 
+              src="/logo-mrgr.png" 
+              alt="Insignia I.E. Mauro Reinaldo Giraldo Romero" 
+              fill 
+              className="object-contain"
+              priority
+            />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Campus Virtual</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {isRegister ? 'Crea una cuenta para acceder a tus cursos' : 'Ingresa tus credenciales para continuar'}
-          </p>
+          <div>
+            <span className="inline-block bg-amber-400 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-widest shadow-sm">
+              I.E. INA 52
+            </span>
+            <h1 className="text-sm font-black tracking-tight text-white uppercase">
+              Mauro R. Giraldo Romero
+            </h1>
+            <p className="text-[11px] text-emerald-200 font-medium">Santo Domingo — Morropón, Piura</p>
+          </div>
         </div>
 
-        {/* Alerta de Error */}
-        {errorMessage && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-            {errorMessage}
+        {/* Mensaje Principal y Propuesta de Valor */}
+        <div className="relative z-10 my-10 md:my-0 max-w-lg">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-800/60 border border-emerald-600/50 text-emerald-200 text-xs font-semibold mb-5">
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            Sistema de Gestión del Aprendizaje 2026
           </div>
-        )}
+          <h2 className="text-3xl md:text-4xl font-black text-white leading-tight tracking-tight">
+            Innovación y Excelencia en el Aula Virtual
+          </h2>
+          <p className="text-emerald-100/90 text-sm mt-4 font-normal leading-relaxed">
+            Plataforma académica diseñada para centralizar sesiones de aprendizaje, recepción de evidencias evaluativas y acompañamiento pedagógico integral.
+          </p>
 
-        {/* Formulario */}
-        <form onSubmit={handleAuth} className="space-y-4">
-          {isRegister && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre</label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          {/* Viñetas de características institucionales */}
+          <div className="mt-8 space-y-3.5">
+            <div className="flex items-center gap-3 text-xs font-medium text-emerald-100">
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Organización modular por Unidades Didácticas y Competencias</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-medium text-emerald-100">
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Recepción digital y calificación con escala vigesimal (0 a 20)</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-medium text-emerald-100">
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Monitoreo en tiempo real para docentes y estudiantes</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pie del panel izquierdo */}
+        <div className="relative z-10 pt-4 border-t border-emerald-800/80 text-[11px] text-emerald-300 flex items-center justify-between">
+          <span>Colegio Emblemático INA 52</span>
+          <span>Año Académico 2026</span>
+        </div>
+      </div>
+
+      {/* PANEL DERECHO: Formulario de Acceso y Registro */}
+      <div className="md:w-1/2 bg-slate-50 p-6 md:p-14 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 md:p-10 shadow-xl border border-slate-200/80">
+          
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-inner">
+              <GraduationCap className="w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+              {isRegistering ? 'Crear Nueva Cuenta' : 'Acceso al Campus'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {isRegistering 
+                ? 'Ingresa tus datos para registrarte en el sistema' 
+                : 'Digita tus credenciales institucionales para ingresar'}
+            </p>
+          </div>
+
+          {errorMsg && (
+            <div className="mb-5 p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            {isRegistering && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nombres</label>
                     <input
                       type="text"
                       required
-                      placeholder="Juan"
+                      placeholder="ej. José Gustavo"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Apellidos</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ej. Barturén"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none transition"
                     />
                   </div>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Apellido</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Pérez"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Usuario</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole('student')}
-                    className={`py-2 text-xs font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
-                      role === 'student'
-                        ? 'bg-blue-50 border-blue-500 text-blue-600'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tipo de Usuario / Rol</label>
+                  <select
+                    value={role}
+                    onChange={(e: any) => setRole(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:border-emerald-600 focus:outline-none transition"
                   >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Estudiante
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole('teacher')}
-                    className={`py-2 text-xs font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
-                      role === 'teacher'
-                        ? 'bg-blue-50 border-blue-500 text-blue-600'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <GraduationCap className="w-3.5 h-3.5" />
-                    Docente
-                  </button>
+                    <option value="student">Estudiante</option>
+                    <option value="teacher">Docente</option>
+                  </select>
                 </div>
+              </>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Correo Electrónico</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="email"
+                  required
+                  placeholder="usuario@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none transition"
+                />
               </div>
-            </>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Correo Electrónico</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="email"
-                required
-                placeholder="correo@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-              />
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Contraseña</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-              />
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Contraseña</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none transition"
+                />
+              </div>
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition cursor-pointer disabled:opacity-50 mt-2 border-b-2 border-emerald-900"
+            >
+              {loading 
+                ? 'Procesando...' 
+                : isRegistering 
+                  ? 'Registrar Cuenta' 
+                  : 'Ingresar a la Plataforma'}
+            </button>
+          </form>
+
+          {/* Alternar entre Iniciar Sesión y Registrarse */}
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegistering(!isRegistering)
+                setErrorMsg('')
+              }}
+              className="text-xs font-bold text-emerald-800 hover:text-emerald-950 transition cursor-pointer"
+            >
+              {isRegistering
+                ? '¿Ya tienes una cuenta registrada? Inicia Sesión'
+                : '¿No tienes cuenta? Regístrate aquí'}
+            </button>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition duration-150 shadow-md disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? 'Procesando...' : isRegister ? 'Registrarse' : 'Iniciar Sesión'}
-          </button>
-        </form>
-
-        {/* Alternar entre Iniciar Sesión y Registrarse */}
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(!isRegister)
-              setErrorMessage('')
-            }}
-            className="text-xs text-blue-600 hover:underline font-medium cursor-pointer"
-          >
-            {isRegister
-              ? '¿Ya tienes una cuenta? Inicia sesión'
-              : '¿No tienes una cuenta? Regístrate aquí'}
-          </button>
         </div>
-
       </div>
     </div>
   )
