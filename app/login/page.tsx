@@ -35,11 +35,14 @@ export default function LoginPage() {
     setLoading(true)
     setErrorMsg('')
 
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanPassword = password.trim()
+
     if (isRegistering) {
-      // Registro
+      // Registro normal
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
+        email: cleanEmail,
+        password: cleanPassword,
         options: {
           data: {
             first_name: firstName.trim(),
@@ -52,11 +55,10 @@ export default function LoginPage() {
       if (error) {
         setErrorMsg('Error al registrarse: ' + error.message)
       } else {
-        // Asegurar que el perfil se inserte o actualice en la tabla 'profiles'
         if (data.user) {
           await supabase.from('profiles').upsert({
             id: data.user.id,
-            email: email.trim(),
+            email: cleanEmail,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             role: role
@@ -65,17 +67,51 @@ export default function LoginPage() {
         router.push('/')
       }
     } else {
-      // Login
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim()
+      // 1. Intentar inicio de sesión estándar
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
       })
 
-      if (error) {
-        setErrorMsg('Credenciales incorrectas: ' + error.message)
-      } else {
+      if (!signInError) {
         router.push('/')
+        setLoading(false)
+        return
       }
+
+      // 2. Si falla por esquema/precarga, verificar si el perfil existe y sincronizar acceso
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', cleanEmail)
+        .single()
+
+      if (existingProfile) {
+        // Inicializar la cuenta en el motor de autenticación
+        const { data: signUpData, error: autoSignUpError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            data: {
+              first_name: existingProfile.first_name,
+              last_name: existingProfile.last_name,
+              role: existingProfile.role
+            }
+          }
+        })
+
+        if (!autoSignUpError && signUpData.user) {
+          await supabase.from('profiles').update({
+            id: signUpData.user.id
+          }).eq('email', cleanEmail)
+
+          router.push('/')
+          setLoading(false)
+          return
+        }
+      }
+
+      setErrorMsg('Credenciales no válidas. Revisa tu correo o contraseña institucional.')
     }
 
     setLoading(false)
