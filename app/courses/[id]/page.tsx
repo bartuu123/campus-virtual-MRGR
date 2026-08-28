@@ -22,6 +22,7 @@ import {
   Lock,
   MessageSquare,
   Plus, 
+  Search,
   Send,
   Sparkles,
   Trash2, 
@@ -86,8 +87,11 @@ export default function CourseDetailPage() {
   const [gradeScore, setGradeScore] = useState('')
   const [gradeFeedback, setGradeFeedback] = useState('')
 
+  // Estados de Matrícula Múltiple
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false)
-  const [selectedStudentIdToEnroll, setSelectedStudentIdToEnroll] = useState('')
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
+  const [searchStudentTerm, setSearchStudentTerm] = useState('')
+  const [enrollingBatch, setEnrollingBatch] = useState(false)
 
   const loadCourseDetails = async () => {
     if (!courseId) return
@@ -151,10 +155,10 @@ export default function CourseDetailPage() {
       .from('profiles')
       .select('*')
       .eq('role', 'student')
+      .order('last_name', { ascending: true })
 
     if (allStudents) setAvailableStudents(allStudents)
 
-    // Cargar Foros
     const { data: topicsData } = await supabase
       .from('forum_topics')
       .select(`
@@ -185,7 +189,67 @@ export default function CourseDetailPage() {
     setOpenModuleIds((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  // Acciones Foro
+  // Matrícula Múltiple
+  const studentsToEnroll = availableStudents.filter(
+    (st) => !enrolledStudents.some((enr) => enr.student_id === st.id)
+  )
+
+  const filteredAvailableStudents = studentsToEnroll.filter((st) => {
+    const fullName = `${st.first_name || ''} ${st.last_name || ''} ${st.email || ''}`.toLowerCase()
+    return fullName.includes(searchStudentTerm.toLowerCase())
+  })
+
+  const handleToggleSelectStudent = (id: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleSelectAllVisible = () => {
+    const visibleIds = filteredAvailableStudents.map((st) => st.id)
+    const allSelected = visibleIds.every((id) => selectedStudentIds.includes(id))
+
+    if (allSelected) {
+      setSelectedStudentIds((prev) => prev.filter((id) => !visibleIds.includes(id)))
+    } else {
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...visibleIds])))
+    }
+  }
+
+  const handleBatchEnrollStudents = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedStudentIds.length === 0) return
+
+    setEnrollingBatch(true)
+
+    const records = selectedStudentIds.map((studentId) => ({
+      course_id: courseId,
+      student_id: studentId,
+      status: 'active'
+    }))
+
+    const { error } = await supabase.from('enrollments').insert(records)
+
+    if (error) {
+      alert('Error al matricular: ' + error.message)
+    } else {
+      alert(`¡Se matricularon ${selectedStudentIds.length} estudiante(s) exitosamente!`)
+      setIsEnrollModalOpen(false)
+      setSelectedStudentIds([])
+      setSearchStudentTerm('')
+      await loadCourseDetails()
+    }
+    setEnrollingBatch(false)
+  }
+
+  const handleUnenroll = async (enrollmentId: string) => {
+    if (!confirm('¿Retirar a este estudiante del curso?')) return
+    const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId)
+    if (error) alert('Error: ' + error.message)
+    else await loadCourseDetails()
+  }
+
+  // Foros
   const handleCreateForumTopic = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentUser || userProfile?.role !== 'teacher') return
@@ -220,7 +284,7 @@ export default function CourseDetailPage() {
     })
 
     if (error) {
-      alert('Error al publicar respuesta: ' + error.message)
+      alert('Error al responder: ' + error.message)
     } else {
       setNewReplyContent((prev) => ({ ...prev, [topicId]: '' }))
       await loadCourseDetails()
@@ -243,7 +307,7 @@ export default function CourseDetailPage() {
   }
 
   const handleDeleteTopic = async (topicId: string) => {
-    if (!confirm('¿Eliminar este tema de debate y todas sus participaciones?')) return
+    if (!confirm('¿Eliminar este tema de debate?')) return
     await supabase.from('forum_topics').delete().eq('id', topicId)
     await loadCourseDetails()
   }
@@ -254,7 +318,7 @@ export default function CourseDetailPage() {
     await loadCourseDetails()
   }
 
-  // Métodos habituales de gestión
+  // Material y Evaluaciones
   const handleDeleteLesson = async (lessonId: string, title: string) => {
     if (!confirm(`¿Eliminar el tema "${title}"?`)) return
     const { error } = await supabase.from('lessons').delete().eq('id', lessonId)
@@ -369,35 +433,6 @@ export default function CourseDetailPage() {
       setGradeFeedback('')
       await loadCourseDetails()
     }
-  }
-
-  const handleEnrollStudent = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedStudentIdToEnroll) return
-    const alreadyEnrolled = enrolledStudents.some((e) => e.student_id === selectedStudentIdToEnroll)
-    if (alreadyEnrolled) {
-      alert('El alumno ya está matriculado.')
-      return
-    }
-    const { error } = await supabase.from('enrollments').insert({
-      course_id: courseId,
-      student_id: selectedStudentIdToEnroll,
-      status: 'active'
-    })
-    if (error) alert('Error: ' + error.message)
-    else {
-      alert('Estudiante matriculado.')
-      setIsEnrollModalOpen(false)
-      setSelectedStudentIdToEnroll('')
-      await loadCourseDetails()
-    }
-  }
-
-  const handleUnenroll = async (enrollmentId: string) => {
-    if (!confirm('¿Retirar a este estudiante del curso?')) return
-    const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId)
-    if (error) alert('Error: ' + error.message)
-    else await loadCourseDetails()
   }
 
   if (loading) {
@@ -546,190 +581,94 @@ export default function CourseDetailPage() {
           </button>
         </div>
 
-        {/* PESTAÑA: FORO DE DEBATE */}
-        {activeTab === 'forum' && (
+        {/* PESTAÑA: NÓMINA DE ESTUDIANTES */}
+        {activeTab === 'students' && (
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Foros y Debates Académicos</h3>
-                <p className="text-xs text-slate-500">Espacio de argumentación dialógica, consultas y valoración entre pares</p>
+                <h3 className="text-lg font-bold text-slate-800">Nómina de Estudiantes</h3>
+                <p className="text-xs text-slate-500">Control de matrícula e inscripción en la sección</p>
               </div>
               {userProfile?.role === 'teacher' && (
                 <button
-                  onClick={() => setIsForumModalOpen(true)}
+                  onClick={() => {
+                    setSelectedStudentIds([])
+                    setSearchStudentTerm('')
+                    setIsEnrollModalOpen(true)
+                  }}
                   className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
-                  Iniciar Debate
+                  <UserPlus className="w-4 h-4" />
+                  Matricular Estudiantes
                 </button>
               )}
             </div>
 
-            {forumTopics.length === 0 ? (
+            {enrolledStudents.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
-                <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-slate-700">No hay debates abiertos en este momento</h4>
-                <p className="text-xs text-slate-400 mt-1 mb-4">
-                  {userProfile?.role === 'teacher'
-                    ? 'Inicia un nuevo tema de discusión con una pregunta orientadora y límite de tiempo.'
-                    : 'Tu docente aún no ha planteado preguntas para debatir en esta sección.'}
-                </p>
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">No hay estudiantes inscritos en esta sección</h4>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Inscribe a los alumnos registrados para que tengan acceso al material.</p>
                 {userProfile?.role === 'teacher' && (
                   <button
-                    onClick={() => setIsForumModalOpen(true)}
+                    onClick={() => {
+                      setSelectedStudentIds([])
+                      setSearchStudentTerm('')
+                      setIsEnrollModalOpen(true)
+                    }}
                     className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-emerald-200"
                   >
-                    Plantear primera pregunta
+                    Matricular estudiantes
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-6">
-                {forumTopics.map((topic) => {
-                  const isClosed = topic.closes_at && new Date(topic.closes_at) < new Date()
-
-                  return (
-                    <div key={topic.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                      {/* Cabecera del Foro */}
-                      <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            {isClosed ? (
-                              <span className="flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                                <Lock className="w-3 h-3" /> Debate Cerrado
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
-                                <Sparkles className="w-3 h-3 text-emerald-600" /> Debate Activo
-                              </span>
-                            )}
-                            {topic.closes_at && (
-                              <span className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
-                                <Clock className="w-3 h-3 text-amber-500" />
-                                Cierra el {new Date(topic.closes_at).toLocaleDateString()} a las {new Date(topic.closes_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
+              <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
+                      <th className="p-4 pl-6">N°</th>
+                      <th className="p-4">Estudiante</th>
+                      <th className="p-4">Correo Institucional</th>
+                      <th className="p-4">Condición</th>
+                      <th className="p-4">Fecha Inscripción</th>
+                      {userProfile?.role === 'teacher' && <th className="p-4 pr-6 text-right">Acción</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
+                    {enrolledStudents.map((enrollment, idx) => (
+                      <tr key={enrollment.id} className="hover:bg-slate-50/60 transition">
+                        <td className="p-4 pl-6 font-bold text-slate-400">{idx + 1}</td>
+                        <td className="p-4 font-bold flex items-center gap-2.5 text-slate-800">
+                          <div className="w-7 h-7 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-xs">
+                            {enrollment.profiles?.first_name?.[0] || 'E'}
                           </div>
-
-                          <h4 className="text-base font-extrabold text-slate-900">{topic.title}</h4>
-                          <p className="text-xs text-slate-700 mt-2 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 whitespace-pre-line">
-                            {topic.content}
-                          </p>
-                        </div>
-
+                          <span>{enrollment.profiles?.first_name} {enrollment.profiles?.last_name}</span>
+                        </td>
+                        <td className="p-4 text-slate-500">{enrollment.profiles?.email}</td>
+                        <td className="p-4">
+                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+                            {enrollment.status || 'Activo'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-slate-500">
+                          {new Date(enrollment.created_at).toLocaleDateString()}
+                        </td>
                         {userProfile?.role === 'teacher' && (
-                          <button
-                            onClick={() => handleDeleteTopic(topic.id)}
-                            className="text-slate-300 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                            title="Eliminar Foro"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Lista de Respuestas de Estudiantes */}
-                      <div className="mt-5 space-y-3">
-                        <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Intervenciones ({topic.forum_replies?.length || 0})
-                        </h5>
-
-                        {topic.forum_replies && topic.forum_replies.length > 0 ? (
-                          <div className="space-y-2.5">
-                            {topic.forum_replies.map((reply: any) => {
-                              const likes = reply.forum_reply_likes || []
-                              const hasLiked = likes.some((l: any) => l.user_id === currentUser?.id)
-                              const isMyReply = reply.author_id === currentUser?.id
-
-                              return (
-                                <div key={reply.id} className="p-4 bg-slate-50/70 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-extrabold text-slate-800">
-                                        {reply.profiles?.first_name} {reply.profiles?.last_name}
-                                      </span>
-                                      <span className="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.2 rounded uppercase">
-                                        {reply.profiles?.role === 'teacher' ? 'Docente' : 'Estudiante'}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400">
-                                        {new Date(reply.created_at).toLocaleDateString()}
-                                      </span>
-                                    </div>
-                                    <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-line">
-                                      {reply.content}
-                                    </p>
-                                  </div>
-
-                                  {/* Botón Me Gusta Anónimo y Acción Eliminar */}
-                                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                                    <button
-                                      onClick={() => handleToggleLike(reply.id, likes)}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                                        hasLiked
-                                          ? 'bg-rose-50 border-rose-200 text-rose-600'
-                                          : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
-                                      }`}
-                                      title="Me gusta anónimo"
-                                    >
-                                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                                      <span>{likes.length}</span>
-                                    </button>
-
-                                    {(isMyReply || userProfile?.role === 'teacher') && (
-                                      <button
-                                        onClick={() => handleDeleteReply(reply.id)}
-                                        className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                                        title="Eliminar intervención"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-slate-400 italic py-2">
-                            Aún no hay intervenciones en este debate. ¡Sé el primero en participar!
-                          </p>
-                        )}
-
-                        {/* Caja para Responder */}
-                        {!isClosed ? (
-                          <div className="mt-4 pt-3 flex gap-2">
-                            <input
-                              type="text"
-                              placeholder="Escribe tu argumento o respuesta..."
-                              value={newReplyContent[topic.id] || ''}
-                              onChange={(e) =>
-                                setNewReplyContent((prev) => ({
-                                  ...prev,
-                                  [topic.id]: e.target.value
-                                }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handlePostReply(topic.id)
-                              }}
-                              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
-                            />
+                          <td className="p-4 pr-6 text-right">
                             <button
-                              onClick={() => handlePostReply(topic.id)}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                              onClick={() => handleUnenroll(enrollment.id)}
+                              className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                              title="Retirar estudiante"
                             >
-                              <Send className="w-3.5 h-3.5" />
-                              Participar
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          </div>
-                        ) : (
-                          <div className="mt-3 p-3 bg-slate-100 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
-                            <Lock className="w-3.5 h-3.5" /> El plazo para participar en este foro ha concluido.
-                          </div>
+                          </td>
                         )}
-                      </div>
-                    </div>
-                  )
-                })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1032,181 +971,279 @@ export default function CourseDetailPage() {
           </div>
         )}
 
-        {/* PESTAÑA: ESTUDIANTES */}
-        {activeTab === 'students' && (
+        {/* PESTAÑA: FORO */}
+        {activeTab === 'forum' && (
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Nómina de Estudiantes</h3>
-                <p className="text-xs text-slate-500">Control de matrícula e inscripción en la sección</p>
+                <h3 className="text-lg font-bold text-slate-800">Foros y Debates Académicos</h3>
+                <p className="text-xs text-slate-500">Espacio de argumentación dialógica y valoración entre pares</p>
               </div>
               {userProfile?.role === 'teacher' && (
                 <button
-                  onClick={() => setIsEnrollModalOpen(true)}
+                  onClick={() => setIsForumModalOpen(true)}
                   className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition cursor-pointer"
                 >
-                  <UserPlus className="w-4 h-4" />
-                  Matricular Estudiante
+                  <Plus className="w-4 h-4" />
+                  Iniciar Debate
                 </button>
               )}
             </div>
 
-            {enrolledStudents.length === 0 ? (
+            {forumTopics.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
-                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-slate-700">No hay estudiantes inscritos en esta sección</h4>
-                <p className="text-xs text-slate-400 mt-1 mb-4">Inscribe a los alumnos registrados para que tengan acceso al material.</p>
+                <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">No hay debates abiertos</h4>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Inicia un tema de debate para fomentar la participación.</p>
                 {userProfile?.role === 'teacher' && (
                   <button
-                    onClick={() => setIsEnrollModalOpen(true)}
+                    onClick={() => setIsForumModalOpen(true)}
                     className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-emerald-200"
                   >
-                    Matricular primer estudiante
+                    Plantear primera pregunta
                   </button>
                 )}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
-                      <th className="p-4 pl-6">N°</th>
-                      <th className="p-4">Estudiante</th>
-                      <th className="p-4">Correo Institucional</th>
-                      <th className="p-4">Condición</th>
-                      <th className="p-4">Fecha Inscripción</th>
-                      {userProfile?.role === 'teacher' && <th className="p-4 pr-6 text-right">Acción</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
-                    {enrolledStudents.map((enrollment, idx) => (
-                      <tr key={enrollment.id} className="hover:bg-slate-50/60 transition">
-                        <td className="p-4 pl-6 font-bold text-slate-400">{idx + 1}</td>
-                        <td className="p-4 font-bold flex items-center gap-2.5 text-slate-800">
-                          <div className="w-7 h-7 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-xs">
-                            {enrollment.profiles?.first_name?.[0] || 'E'}
+              <div className="space-y-6">
+                {forumTopics.map((topic) => {
+                  const isClosed = topic.closes_at && new Date(topic.closes_at) < new Date()
+
+                  return (
+                    <div key={topic.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                      <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            {isClosed ? (
+                              <span className="flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                                <Lock className="w-3 h-3" /> Debate Cerrado
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                <Sparkles className="w-3 h-3 text-emerald-600" /> Debate Activo
+                              </span>
+                            )}
+                            {topic.closes_at && (
+                              <span className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                                <Clock className="w-3 h-3 text-amber-500" />
+                                Cierra el {new Date(topic.closes_at).toLocaleDateString()} a las {new Date(topic.closes_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
                           </div>
-                          <span>{enrollment.profiles?.first_name} {enrollment.profiles?.last_name}</span>
-                        </td>
-                        <td className="p-4 text-slate-500">{enrollment.profiles?.email}</td>
-                        <td className="p-4">
-                          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
-                            {enrollment.status || 'Activo'}
-                          </span>
-                        </td>
-                        <td className="p-4 text-slate-500">
-                          {new Date(enrollment.created_at).toLocaleDateString()}
-                        </td>
+
+                          <h4 className="text-base font-extrabold text-slate-900">{topic.title}</h4>
+                          <p className="text-xs text-slate-700 mt-2 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 whitespace-pre-line">
+                            {topic.content}
+                          </p>
+                        </div>
+
                         {userProfile?.role === 'teacher' && (
-                          <td className="p-4 pr-6 text-right">
-                            <button
-                              onClick={() => handleUnenroll(enrollment.id)}
-                              className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                              title="Retirar estudiante"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
+                          <button
+                            onClick={() => handleDeleteTopic(topic.id)}
+                            className="text-slate-300 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                            title="Eliminar Foro"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </div>
+
+                      <div className="mt-5 space-y-3">
+                        <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                          Intervenciones ({topic.forum_replies?.length || 0})
+                        </h5>
+
+                        {topic.forum_replies && topic.forum_replies.length > 0 ? (
+                          <div className="space-y-2.5">
+                            {topic.forum_replies.map((reply: any) => {
+                              const likes = reply.forum_reply_likes || []
+                              const hasLiked = likes.some((l: any) => l.user_id === currentUser?.id)
+                              const isMyReply = reply.author_id === currentUser?.id
+
+                              return (
+                                <div key={reply.id} className="p-4 bg-slate-50/70 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-extrabold text-slate-800">
+                                        {reply.profiles?.first_name} {reply.profiles?.last_name}
+                                      </span>
+                                      <span className="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.2 rounded uppercase">
+                                        {reply.profiles?.role === 'teacher' ? 'Docente' : 'Estudiante'}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400">
+                                        {new Date(reply.created_at).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-line">
+                                      {reply.content}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                    <button
+                                      onClick={() => handleToggleLike(reply.id, likes)}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                                        hasLiked
+                                          ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                          : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+                                      }`}
+                                      title="Me gusta anónimo"
+                                    >
+                                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                      <span>{likes.length}</span>
+                                    </button>
+
+                                    {(isMyReply || userProfile?.role === 'teacher') && (
+                                      <button
+                                        onClick={() => handleDeleteReply(reply.id)}
+                                        className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                                        title="Eliminar intervención"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic py-2">
+                            Aún no hay intervenciones en este debate.
+                          </p>
+                        )}
+
+                        {!isClosed ? (
+                          <div className="mt-4 pt-3 flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Escribe tu argumento o respuesta..."
+                              value={newReplyContent[topic.id] || ''}
+                              onChange={(e) =>
+                                setNewReplyContent((prev) => ({
+                                  ...prev,
+                                  [topic.id]: e.target.value
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handlePostReply(topic.id)
+                              }}
+                              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                            />
+                            <button
+                              onClick={() => handlePostReply(topic.id)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              Participar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-3 p-3 bg-slate-100 rounded-xl text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5" /> El plazo para participar en este foro ha concluido.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
         )}
       </main>
 
-      {/* MODAL: INICIAR DEBATE / FORO (DOCENTE) */}
-      {isForumModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
-            <h3 className="text-base font-extrabold text-slate-800 mb-1">Plantear Tema de Debate</h3>
-            <p className="text-xs text-slate-500 mb-4">Abre una discusión dialógica con fecha de caducidad para el aula:</p>
-
-            <form onSubmit={handleCreateForumTopic} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Título o Pregunta Central</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ej. ¿Por qué es fundamental la fotosíntesis en el ecosistema?"
-                  value={forumTitle}
-                  onChange={(e) => setForumTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Instrucciones o Contexto del Debate</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Explica a los alumnos qué puntos deben argumentar y qué aspectos tomar en cuenta..."
-                  value={forumQuestion}
-                  onChange={(e) => setForumQuestion(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Límite de Tiempo para Responder (Opcional)</label>
-                <input
-                  type="datetime-local"
-                  value={forumClosesAt}
-                  onChange={(e) => setForumClosesAt(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">Pasada esta fecha, el foro se cerrará y solo quedará para lectura.</span>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsForumModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  Publicar Debate
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: MATRICULAR ESTUDIANTE */}
+      {/* MODAL: MATRICULAR ESTUDIANTES (SELECCIÓN MÚLTIPLE Y MASIVA) */}
       {isEnrollModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-base font-extrabold text-slate-800 mb-1">Matricular Estudiante</h3>
-            <p className="text-xs text-slate-500 mb-4">Selecciona al alumno para concederle acceso al aula virtual:</p>
-
-            <form onSubmit={handleEnrollStudent} className="space-y-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Alumno Registrado</label>
-                <select
-                  required
-                  value={selectedStudentIdToEnroll}
-                  onChange={(e) => setSelectedStudentIdToEnroll(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:border-emerald-600 focus:outline-none"
-                >
-                  <option value="">-- Selecciona un alumno --</option>
-                  {availableStudents.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.first_name} {st.last_name} ({st.email})
-                    </option>
-                  ))}
-                </select>
+                <h3 className="text-base font-extrabold text-slate-800">Matrícula de Estudiantes</h3>
+                <p className="text-xs text-slate-500">Selecciona uno, varios o todos los alumnos para esta sección</p>
+              </div>
+              <button
+                onClick={() => setIsEnrollModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Buscador y Botón Marcar Todos */}
+            <div className="mt-4 space-y-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Buscar estudiante por apellidos o nombres..."
+                  value={searchStudentTerm}
+                  onChange={(e) => setSearchStudentTerm(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none font-medium"
+                />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              {filteredAvailableStudents.length > 0 && (
+                <div className="flex items-center justify-between px-1">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllVisible}
+                    className="text-xs font-bold text-emerald-800 hover:text-emerald-950 transition cursor-pointer"
+                  >
+                    {filteredAvailableStudents.every((st) => selectedStudentIds.includes(st.id))
+                      ? 'Desmarcar todos los visibles'
+                      : 'Seleccionar todos los visibles'}
+                  </button>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {selectedStudentIds.length} seleccionado(s)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Lista Scrollable con Checkboxes */}
+            <div className="my-4 flex-1 overflow-y-auto max-h-60 border border-slate-200 rounded-2xl divide-y divide-slate-100 bg-slate-50/50">
+              {filteredAvailableStudents.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 italic">
+                  {studentsToEnroll.length === 0
+                    ? 'Todos los estudiantes registrados ya están matriculados en este curso.'
+                    : 'No se encontraron estudiantes con ese criterio de búsqueda.'}
+                </div>
+              ) : (
+                filteredAvailableStudents.map((st) => {
+                  const isChecked = selectedStudentIds.includes(st.id)
+                  return (
+                    <label
+                      key={st.id}
+                      className={`flex items-center gap-3 p-3.5 cursor-pointer transition ${
+                        isChecked ? 'bg-emerald-50/70' : 'hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleSelectStudent(st.id)}
+                        className="w-4 h-4 rounded text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-slate-800 leading-tight">
+                          {st.last_name ? `${st.last_name}, ` : ''}{st.first_name}
+                        </p>
+                        <p className="text-[11px] text-slate-500">{st.email}</p>
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-600">
+                Total a matricular: {selectedStudentIds.length}
+              </span>
+
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setIsEnrollModalOpen(false)}
@@ -1215,13 +1252,15 @@ export default function CourseDetailPage() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                  type="button"
+                  onClick={handleBatchEnrollStudents}
+                  disabled={selectedStudentIds.length === 0 || enrollingBatch}
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-sm"
                 >
-                  Confirmar Matrícula
+                  {enrollingBatch ? 'Matriculando...' : `Matricular (${selectedStudentIds.length})`}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -1495,6 +1534,69 @@ export default function CourseDetailPage() {
                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Guardar Nota
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INICIAR FORO */}
+      {isForumModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
+            <h3 className="text-base font-extrabold text-slate-800 mb-1">Plantear Tema de Debate</h3>
+            <p className="text-xs text-slate-500 mb-4">Abre una discusión dialógica con fecha de caducidad:</p>
+
+            <form onSubmit={handleCreateForumTopic} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Título o Pregunta Central</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej. ¿Por qué es fundamental la fotosíntesis en el ecosistema?"
+                  value={forumTitle}
+                  onChange={(e) => setForumTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Instrucciones o Contexto del Debate</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Explica a los alumnos qué puntos deben argumentar..."
+                  value={forumQuestion}
+                  onChange={(e) => setForumQuestion(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Límite de Tiempo para Responder (Opcional)</label>
+                <input
+                  type="datetime-local"
+                  value={forumClosesAt}
+                  onChange={(e) => setForumClosesAt(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Pasada esta fecha, el foro se cerrará y solo quedará para lectura.</span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsForumModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Publicar Debate
                 </button>
               </div>
             </form>
