@@ -22,9 +22,11 @@ import {
   Lock,
   MessageSquare,
   Plus, 
+  RefreshCw,
   Search,
   Send,
   Sparkles,
+  Table as TableIcon,
   Trash2, 
   UploadCloud, 
   User, 
@@ -48,7 +50,12 @@ export default function CourseDetailPage() {
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([])
   const [availableStudents, setAvailableStudents] = useState<any[]>([])
   
-  // Estados del Foro
+  // Pestañas
+  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'students' | 'forum' | 'grades'>('content')
+  const [loading, setLoading] = useState(true)
+  const [openModuleIds, setOpenModuleIds] = useState<Record<string, boolean>>({})
+
+  // Estados de Foros
   const [forumTopics, setForumTopics] = useState<any[]>([])
   const [newReplyContent, setNewReplyContent] = useState<Record<string, string>>({})
   const [isForumModalOpen, setIsForumModalOpen] = useState(false)
@@ -56,11 +63,7 @@ export default function CourseDetailPage() {
   const [forumQuestion, setForumQuestion] = useState('')
   const [forumClosesAt, setForumClosesAt] = useState('')
 
-  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'students' | 'forum'>('content')
-  const [loading, setLoading] = useState(true)
-  const [openModuleIds, setOpenModuleIds] = useState<Record<string, boolean>>({})
-
-  // Modales
+  // Modales Unidades y Temas
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false)
   const [moduleTitle, setModuleTitle] = useState('')
   const [moduleDesc, setModuleDesc] = useState('')
@@ -71,6 +74,7 @@ export default function CourseDetailPage() {
   const [lessonType, setLessonType] = useState<'text' | 'video' | 'pdf' | 'link'>('text')
   const [lessonContent, setLessonContent] = useState('')
 
+  // Tareas y Calificaciones
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false)
   const [assignTitle, setAssignTitle] = useState('')
   const [assignDesc, setAssignDesc] = useState('')
@@ -87,11 +91,21 @@ export default function CourseDetailPage() {
   const [gradeScore, setGradeScore] = useState('')
   const [gradeFeedback, setGradeFeedback] = useState('')
 
-  // Estados de Matrícula Múltiple
+  // Matrícula Múltiple
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
   const [searchStudentTerm, setSearchStudentTerm] = useState('')
   const [enrollingBatch, setEnrollingBatch] = useState(false)
+
+  // ==========================================
+  // ESTADOS DEL MÓDULO DE RÚBRICAS Y NOTAS
+  // ==========================================
+  const [sheetsData, setSheetsData] = useState<{ sessions: any[]; resumen: any[] } | null>(null)
+  const [loadingSheets, setLoadingSheets] = useState(false)
+  const [selectedSessionTab, setSelectedSessionTab] = useState<string>('RESUMEN')
+  const [sheetsUrlInput, setSheetsUrlInput] = useState('')
+  const [isConfiguringSheets, setIsConfiguringSheets] = useState(false)
+  const [searchGradeStudent, setSearchGradeStudent] = useState('')
 
   const loadCourseDetails = async () => {
     if (!courseId) return
@@ -115,7 +129,19 @@ export default function CourseDetailPage() {
       .select('*')
       .eq('id', courseId)
       .single()
-    if (courseData) setCourse(courseData)
+    
+    if (courseData) {
+      setCourse(courseData)
+      if (courseData.sheets_grades_url) {
+        setSheetsUrlInput(courseData.sheets_grades_url)
+        fetchSheetsData(courseData.sheets_grades_url)
+      } else if (courseData.code?.includes('5TO') || courseData.title?.includes('5to B')) {
+        // Fallback por defecto para 5to B
+        const defaultUrl = 'https://script.google.com/macros/s/AKfycbyHcdqEYjVIAsnfqGhWRMS5AhjOcyQnzlbt9nmWi7SxVr3cEtBn4AghrRZ-B1Y37zkhjg/exec'
+        setSheetsUrlInput(defaultUrl)
+        fetchSheetsData(defaultUrl)
+      }
+    }
 
     const { data: modulesData } = await supabase
       .from('modules')
@@ -185,8 +211,53 @@ export default function CourseDetailPage() {
     loadCourseDetails()
   }, [courseId])
 
+  // Cargar datos de Google Apps Script Web App
+  const fetchSheetsData = async (urlToFetch: string) => {
+    if (!urlToFetch) return
+    setLoadingSheets(true)
+    try {
+      const res = await fetch(urlToFetch)
+      const data = await res.json()
+      setSheetsData(data)
+      if (data.sessions && data.sessions.length > 0 && selectedSessionTab === 'RESUMEN' && (!data.resumen || data.resumen.length === 0)) {
+        setSelectedSessionTab(data.sessions[0].id)
+      }
+    } catch (err) {
+      console.error('Error al cargar datos desde Google Sheets:', err)
+    } finally {
+      setLoadingSheets(false)
+    }
+  }
+
+  const handleSaveSheetsUrl = async () => {
+    if (!courseId) return
+    const cleanUrl = sheetsUrlInput.trim()
+    const { error } = await supabase
+      .from('courses')
+      .update({ sheets_grades_url: cleanUrl })
+      .eq('id', courseId)
+
+    if (error) {
+      alert('Error al guardar: ' + error.message)
+    } else {
+      alert('Enlace de Google Sheets guardado exitosamente para este curso.')
+      setIsConfiguringSheets(false)
+      fetchSheetsData(cleanUrl)
+    }
+  }
+
   const toggleModule = (id: string) => {
     setOpenModuleIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  // Helper de badges para notas
+  const getGradeBadge = (grade: string) => {
+    const val = (grade || '').trim().toUpperCase()
+    if (val === 'AD') return <span className="bg-blue-600 text-white font-black px-2.5 py-1 rounded-lg text-xs shadow-xs">AD</span>
+    if (val === 'A') return <span className="bg-emerald-600 text-white font-black px-2.5 py-1 rounded-lg text-xs shadow-xs">A</span>
+    if (val === 'B') return <span className="bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-xs shadow-xs">B</span>
+    if (val === 'C') return <span className="bg-rose-600 text-white font-black px-2.5 py-1 rounded-lg text-xs shadow-xs">C</span>
+    return <span className="text-slate-400 font-bold text-xs">-</span>
   }
 
   // Matrícula Múltiple
@@ -263,7 +334,7 @@ export default function CourseDetailPage() {
     })
 
     if (error) {
-      alert('Error al iniciar foro: ' + error.message)
+      alert('Error al iniciar debate: ' + error.message)
     } else {
       setIsForumModalOpen(false)
       setForumTitle('')
@@ -318,7 +389,7 @@ export default function CourseDetailPage() {
     await loadCourseDetails()
   }
 
-  // Material y Evaluaciones
+  // Manejo de módulos, lecciones y tareas
   const handleDeleteLesson = async (lessonId: string, title: string) => {
     if (!confirm(`¿Eliminar el tema "${title}"?`)) return
     const { error } = await supabase.from('lessons').delete().eq('id', lessonId)
@@ -443,6 +514,10 @@ export default function CourseDetailPage() {
     )
   }
 
+  // Filtrado de estudiante para notas
+  const currentStudentFullName = `${userProfile?.last_name || ''} ${userProfile?.first_name || ''}`.toUpperCase().trim()
+  const currentSession = sheetsData?.sessions?.find((s) => s.id === selectedSessionTab)
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-16">
       {/* Barra superior institucional */}
@@ -499,7 +574,7 @@ export default function CourseDetailPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Banner Informativo del Curso */}
+        {/* Banner Informativo */}
         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 rounded-3xl p-7 text-white shadow-md mb-8 border-b-4 border-amber-400">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -530,7 +605,7 @@ export default function CourseDetailPage() {
           </div>
         </div>
 
-        {/* Pestañas de Navegación */}
+        {/* Pestañas de Navegación con Rúbricas y Notas */}
         <div className="flex border-b border-slate-200 mb-8 gap-3 sm:gap-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('content')}
@@ -553,7 +628,7 @@ export default function CourseDetailPage() {
             }`}
           >
             <FileText className="w-4 h-4 text-amber-500" />
-            Tareas y Evaluaciones ({assignments.length})
+            Tareas ({assignments.length})
           </button>
 
           <button
@@ -565,7 +640,20 @@ export default function CourseDetailPage() {
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-600" />
-            Foros de Debate ({forumTopics.length})
+            Foros ({forumTopics.length})
+          </button>
+
+          {/* NUEVA PESTAÑA: RÚBRICAS Y EVALUACIONES */}
+          <button
+            onClick={() => setActiveTab('grades')}
+            className={`pb-3.5 text-xs sm:text-sm font-bold transition cursor-pointer border-b-2 flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'grades'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <TableIcon className="w-4 h-4 text-emerald-600" />
+            Rúbricas y Notas CNEB
           </button>
 
           <button
@@ -577,9 +665,329 @@ export default function CourseDetailPage() {
             }`}
           >
             <Users className="w-4 h-4 text-teal-600" />
-            Nómina de Estudiantes ({enrolledStudents.length})
+            Estudiantes ({enrolledStudents.length})
           </button>
         </div>
+
+        {/* ========================================== */}
+        {/* PESTAÑA: RÚBRICAS Y NOTAS CNEB           */}
+        {/* ========================================== */}
+        {activeTab === 'grades' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-amber-500" />
+                  Registro Auxiliar de Evaluación Formativa
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Sincronizado en vivo con Google Sheets ({course?.title})
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => fetchSheetsData(sheetsUrlInput || course?.sheets_grades_url)}
+                  disabled={loadingSheets}
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer"
+                  title="Recargar calificaciones de Google Sheets"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSheets ? 'animate-spin text-emerald-600' : ''}`} />
+                  Actualizar
+                </button>
+
+                {userProfile?.role === 'teacher' && (
+                  <button
+                    onClick={() => setIsConfiguringSheets(!isConfiguringSheets)}
+                    className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer"
+                  >
+                    Vincular Hoja
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Panel de Configuración de URL (Solo Docente) */}
+            {isConfiguringSheets && userProfile?.role === 'teacher' && (
+              <div className="bg-emerald-900 text-white p-5 rounded-2xl shadow-md border-b-4 border-amber-400">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">
+                  Enlace de Google Apps Script (Web App URL)
+                </h4>
+                <p className="text-xs text-emerald-100 mb-3">
+                  Pega la URL terminada en <code>/exec</code> del Apps Script de este curso para conectar sus rúbricas:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={sheetsUrlInput}
+                    onChange={(e) => setSheetsUrlInput(e.target.value)}
+                    className="flex-1 px-3.5 py-2 bg-white text-slate-900 rounded-xl text-xs font-mono focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveSheetsUrl}
+                    className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    Guardar y Conectar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-pestañas: RESUMEN y Sesiones (SS1, SS2, etc.) */}
+            {sheetsData ? (
+              <div>
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto mb-6">
+                  {sheetsData.resumen && sheetsData.resumen.length > 0 && (
+                    <button
+                      onClick={() => setSelectedSessionTab('RESUMEN')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                        selectedSessionTab === 'RESUMEN'
+                          ? 'bg-emerald-700 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      📊 Resumen por Competencias
+                    </button>
+                  )}
+
+                  {sheetsData.sessions?.map((session: any) => (
+                    <button
+                      key={session.id}
+                      onClick={() => setSelectedSessionTab(session.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                        selectedSessionTab === session.id
+                          ? 'bg-emerald-700 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      📑 {session.id}
+                    </button>
+                  ))}
+                </div>
+
+                {/* VISTA 1: RESUMEN POR COMPETENCIAS */}
+                {selectedSessionTab === 'RESUMEN' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/50 to-white">
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800">
+                          Matriz Consolidada de Niveles de Logro
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Calificación basada en la escala CNEB (AD, A, B, C)
+                        </p>
+                      </div>
+
+                      {userProfile?.role === 'teacher' && (
+                        <div className="relative w-full sm:w-64">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder="Buscar alumno..."
+                            value={searchGradeStudent}
+                            onChange={(e) => setSearchGradeStudent(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                            <th className="p-4 pl-6">N°</th>
+                            <th className="p-4">Estudiante</th>
+                            <th className="p-4 text-center">C1: Indaga</th>
+                            <th className="p-4 text-center">C2: Explica</th>
+                            <th className="p-4 text-center">C3: Diseña</th>
+                            <th className="p-4 text-center">C4: Transversal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
+                          {sheetsData.resumen
+                            ?.filter((r: any) => {
+                              if (userProfile?.role === 'student') {
+                                return currentStudentFullName.includes(r.student.toUpperCase()) || r.student.toUpperCase().includes(currentStudentFullName)
+                              }
+                              return r.student.toLowerCase().includes(searchGradeStudent.toLowerCase())
+                            })
+                            .map((row: any, idx: number) => (
+                              <tr key={idx} className="hover:bg-slate-50/60 transition">
+                                <td className="p-4 pl-6 text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="p-4 font-bold text-slate-800">{row.student}</td>
+                                <td className="p-4 text-center">{getGradeBadge(row.comp1)}</td>
+                                <td className="p-4 text-center">{getGradeBadge(row.comp2)}</td>
+                                <td className="p-4 text-center">{getGradeBadge(row.comp3)}</td>
+                                <td className="p-4 text-center">{getGradeBadge(row.comp4)}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* VISTA 2: SESIÓN INDIVIDUAL CON LOS 4 CRITERIOS Y RÚBRICA */}
+                {selectedSessionTab !== 'RESUMEN' && currentSession && (
+                  <div className="space-y-6">
+                    {/* Tarjeta Descriptiva de la Sesión */}
+                    <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-6 rounded-3xl shadow-sm border-b-4 border-amber-400">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
+                        {currentSession.id}
+                      </span>
+                      <h4 className="text-lg font-black mt-2">{currentSession.title}</h4>
+                      <div className="mt-3 flex items-center gap-2 text-xs text-emerald-100 font-medium bg-emerald-950/40 p-3 rounded-2xl border border-emerald-700/50">
+                        <Award className="w-4 h-4 text-amber-300 shrink-0" />
+                        <span><strong>Competencia:</strong> {currentSession.competence}</span>
+                      </div>
+                    </div>
+
+                    {/* Rúbrica: Criterios de Evaluación */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                      <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Criterios de Evaluación de la Sesión
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {currentSession.criteria?.map((crit: string, cIdx: number) => (
+                          <div key={cIdx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                            <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                              Criterio {cIdx + 1}
+                            </span>
+                            <p className="text-xs text-slate-700 mt-2 font-medium leading-relaxed">
+                              {crit || 'Criterio en desarrollo...'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* VISTA ESPECÍFICA PARA EL ESTUDIANTE: SU FICHA INDIVIDUAL */}
+                    {userProfile?.role === 'student' ? (
+                      (() => {
+                        const myEval = currentSession.students?.find((st: any) =>
+                          currentStudentFullName.includes(st.name.toUpperCase()) || st.name.toUpperCase().includes(currentStudentFullName)
+                        )
+
+                        if (!myEval) {
+                          return (
+                            <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center text-xs text-slate-400 italic">
+                              Aún no se ha registrado tu evaluación para esta sesión.
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div className="bg-white border-2 border-emerald-600/30 rounded-3xl p-6 shadow-md">
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Mi Evaluación</span>
+                                <h4 className="text-base font-black text-slate-800">{myEval.name}</h4>
+                              </div>
+                              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold">
+                                Evaluación Registrada
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 my-6">
+                              <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-200">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Criterio 1</span>
+                                {getGradeBadge(myEval.c1)}
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-200">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Criterio 2</span>
+                                {getGradeBadge(myEval.c2)}
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-200">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Criterio 3</span>
+                                {getGradeBadge(myEval.c3)}
+                              </div>
+                              <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-200">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Criterio 4</span>
+                                {getGradeBadge(myEval.c4)}
+                              </div>
+                            </div>
+
+                            {myEval.observation && (
+                              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                                <span className="text-[11px] font-bold text-amber-900 block mb-1">
+                                  Retroalimentación del Docente:
+                                </span>
+                                <p className="text-xs text-amber-800 italic">
+                                  "{myEval.observation}"
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      /* VISTA PARA EL DOCENTE: SÁBANA COMPLETA DE LA SESIÓN */
+                      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                            Evaluación por Alumno ({currentSession.students?.length || 0})
+                          </h5>
+                          <div className="relative w-full sm:w-64">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                            <input
+                              type="text"
+                              placeholder="Buscar en esta sesión..."
+                              value={searchGradeStudent}
+                              onChange={(e) => setSearchGradeStudent(e.target.value)}
+                              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-600"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                                <th className="p-3.5 pl-6">N°</th>
+                                <th className="p-3.5">Nombre y Apellido</th>
+                                <th className="p-3.5 text-center">Crit. 1</th>
+                                <th className="p-3.5 text-center">Crit. 2</th>
+                                <th className="p-3.5 text-center">Crit. 3</th>
+                                <th className="p-3.5 text-center">Crit. 4</th>
+                                <th className="p-3.5 pr-6">Observación</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
+                              {currentSession.students
+                                ?.filter((st: any) => st.name.toLowerCase().includes(searchGradeStudent.toLowerCase()))
+                                .map((st: any, idx: number) => (
+                                  <tr key={idx} className="hover:bg-slate-50/60 transition">
+                                    <td className="p-3.5 pl-6 text-slate-400 font-bold">{idx + 1}</td>
+                                    <td className="p-3.5 font-bold text-slate-800">{st.name}</td>
+                                    <td className="p-3.5 text-center">{getGradeBadge(st.c1)}</td>
+                                    <td className="p-3.5 text-center">{getGradeBadge(st.c2)}</td>
+                                    <td className="p-3.5 text-center">{getGradeBadge(st.c3)}</td>
+                                    <td className="p-3.5 text-center">{getGradeBadge(st.c4)}</td>
+                                    <td className="p-3.5 pr-6 text-slate-500 font-normal italic">
+                                      {st.observation || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
+                <TableIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-700">Cargando datos de evaluación...</h4>
+                <p className="text-xs text-slate-400 mt-1">Conectando con Google Sheets.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* PESTAÑA: NÓMINA DE ESTUDIANTES */}
         {activeTab === 'students' && (
@@ -1153,7 +1561,7 @@ export default function CourseDetailPage() {
         )}
       </main>
 
-      {/* MODAL: MATRICULAR ESTUDIANTES (SELECCIÓN MÚLTIPLE Y MASIVA) */}
+      {/* MODAL: MATRICULAR ESTUDIANTES */}
       {isEnrollModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 flex flex-col max-h-[90vh]">
@@ -1170,7 +1578,6 @@ export default function CourseDetailPage() {
               </button>
             </div>
 
-            {/* Buscador y Botón Marcar Todos */}
             <div className="mt-4 space-y-3">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -1201,7 +1608,6 @@ export default function CourseDetailPage() {
               )}
             </div>
 
-            {/* Lista Scrollable con Checkboxes */}
             <div className="my-4 flex-1 overflow-y-auto max-h-60 border border-slate-200 rounded-2xl divide-y divide-slate-100 bg-slate-50/50">
               {filteredAvailableStudents.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-400 italic">
@@ -1237,10 +1643,9 @@ export default function CourseDetailPage() {
               )}
             </div>
 
-            {/* Botones de acción */}
             <div className="flex justify-between items-center pt-3 border-t border-slate-100">
               <span className="text-xs font-bold text-slate-600">
-                Total a matricular: {selectedStudentIds.length}
+                Total: {selectedStudentIds.length}
               </span>
 
               <div className="flex gap-2">
@@ -1441,7 +1846,7 @@ export default function CourseDetailPage() {
         </div>
       )}
 
-      {/* MODAL: ENTREGAR TAREA (ESTUDIANTE) */}
+      {/* MODAL: ENTREGAR TAREA */}
       {isSubmitModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
@@ -1488,7 +1893,7 @@ export default function CourseDetailPage() {
         </div>
       )}
 
-      {/* MODAL: CALIFICAR (DOCENTE) */}
+      {/* MODAL: CALIFICAR */}
       {isGradingModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
