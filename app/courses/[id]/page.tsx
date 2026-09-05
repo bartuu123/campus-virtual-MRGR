@@ -100,7 +100,7 @@ export default function CourseDetailPage() {
   // ==========================================
   // ESTADOS DEL MÓDULO DE RÚBRICAS Y NOTAS
   // ==========================================
-  const [sheetsData, setSheetsData] = useState<{ sessions: any[]; resumen: any[] } | null>(null)
+  const [sheetsData, setSheetsData] = useState<{ sessions: any[]; resumen: any[]; competencies?: string[] } | null>(null)
   const [loadingSheets, setLoadingSheets] = useState(false)
   const [selectedSessionTab, setSelectedSessionTab] = useState<string>('RESUMEN')
   const [sheetsUrlInput, setSheetsUrlInput] = useState('')
@@ -822,13 +822,21 @@ export default function CourseDetailPage() {
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
-                            <th className="p-4 pl-6">N°</th>
-                            <th className="p-4">Estudiante</th>
-                            <th className="p-4 text-center">C1: Indaga</th>
-                            <th className="p-4 text-center">C2: Explica</th>
-                            <th className="p-4 text-center">C3: Diseña</th>
-                            <th className="p-4 text-center">C4: Transversal</th>
-                          </tr>
+  <th className="p-4 pl-6">N°</th>
+  <th className="p-4">Estudiante</th>
+  <th className="p-4 text-center">
+    {sheetsData.competencies?.[0] || 'C1: Cantidad / Indaga'}
+  </th>
+  <th className="p-4 text-center">
+    {sheetsData.competencies?.[1] || 'C2: Regularidad / Explica'}
+  </th>
+  <th className="p-4 text-center">
+    {sheetsData.competencies?.[2] || 'C3: Datos / Diseña'}
+  </th>
+  <th className="p-4 text-center">
+    {sheetsData.competencies?.[3] || 'C4: Forma / Transversal'}
+  </th>
+</tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
                           {sheetsData.resumen
