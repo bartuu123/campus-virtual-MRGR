@@ -469,6 +469,22 @@ const handlePostReply = async (topicId: string, parentId: string | null = null) 
       await loadCourseDetails()
     }
   }
+  const handleDeleteAssignment = async (assignmentId: string, title: string) => {
+    if (!confirm(`¿Estás seguro de eliminar la tarea "${title}"? Se borrarán también las entregas y notas asociadas.`)) {
+      return
+    }
+
+    const { error } = await supabase
+      .from('assignments')
+      .delete()
+      .eq('id', assignmentId)
+
+    if (error) {
+      alert('Error al eliminar la tarea: ' + error.message)
+    } else {
+      await loadCourseDetails()
+    }
+  }
 
   const handleSubmitWork = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1301,11 +1317,24 @@ const handlePostReply = async (topicId: string, parentId: string | null = null) 
                     <div key={assign.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
-                              Evaluación
-                            </span>
-                            <h4 className="text-sm font-extrabold text-slate-900">{assign.title}</h4>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
+                                Evaluación
+                              </span>
+                              <h4 className="text-sm font-extrabold text-slate-900">{assign.title}</h4>
+                            </div>
+
+                            {userProfile?.role === 'teacher' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAssignment(assign.id, assign.title)}
+                                className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                title="Eliminar tarea"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
 
                           <p className="text-xs text-slate-600 mt-2 max-w-2xl leading-relaxed">
