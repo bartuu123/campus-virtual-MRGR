@@ -514,8 +514,33 @@ export default function CourseDetailPage() {
     )
   }
 
-  // Filtrado de estudiante para notas
-  const currentStudentFullName = `${userProfile?.last_name || ''} ${userProfile?.first_name || ''}`.toUpperCase().trim()
+// Función para normalizar texto (quita tildes, comas, puntos y espacios extras)
+  const normalizeText = (text: string) => {
+    return (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '')
+  }
+
+  // Verifica si el estudiante logueado coincide con el alumno de la hoja de cálculo
+  const isCurrentStudent = (sheetStudentName: string) => {
+    if (!userProfile) return false
+    const cleanSheetName = normalizeText(sheetStudentName)
+    const cleanFirst = normalizeText(userProfile.first_name)
+    const cleanLast = normalizeText(userProfile.last_name)
+
+    // Coincidencia exacta limpia
+    if (cleanSheetName === `${cleanLast}${cleanFirst}` || cleanSheetName === `${cleanFirst}${cleanLast}`) {
+      return true
+    }
+
+    // Coincidencia por apellidos y primer nombre
+    const firstWordOfFirst = cleanFirst.slice(0, 5)
+    const firstWordOfLast = cleanLast.slice(0, 5)
+    return cleanSheetName.includes(firstWordOfLast) && cleanSheetName.includes(firstWordOfFirst)
+  }
+
   const currentSession = sheetsData?.sessions?.find((s) => s.id === selectedSessionTab)
 
   return (
@@ -807,12 +832,12 @@ export default function CourseDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
                           {sheetsData.resumen
-                            ?.filter((r: any) => {
-                              if (userProfile?.role === 'student') {
-                                return currentStudentFullName.includes(r.student.toUpperCase()) || r.student.toUpperCase().includes(currentStudentFullName)
-                              }
-                              return r.student.toLowerCase().includes(searchGradeStudent.toLowerCase())
-                            })
+                              ?.filter((r: any) => {
+                                if (userProfile?.role === 'student') {
+                                  return isCurrentStudent(r.student)
+                                }
+                                return r.student.toLowerCase().includes(searchGradeStudent.toLowerCase())
+                              })
                             .map((row: any, idx: number) => (
                               <tr key={idx} className="hover:bg-slate-50/60 transition">
                                 <td className="p-4 pl-6 text-slate-400 font-bold">{idx + 1}</td>
@@ -867,9 +892,7 @@ export default function CourseDetailPage() {
                     {/* VISTA ESPECÍFICA PARA EL ESTUDIANTE: SU FICHA INDIVIDUAL */}
                     {userProfile?.role === 'student' ? (
                       (() => {
-                        const myEval = currentSession.students?.find((st: any) =>
-                          currentStudentFullName.includes(st.name.toUpperCase()) || st.name.toUpperCase().includes(currentStudentFullName)
-                        )
+                        const myEval = currentSession.students?.find((st: any) => isCurrentStudent(st.name))
 
                         if (!myEval) {
                           return (
