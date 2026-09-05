@@ -58,6 +58,8 @@ export default function CourseDetailPage() {
   // Estados de Foros
   const [forumTopics, setForumTopics] = useState<any[]>([])
   const [newReplyContent, setNewReplyContent] = useState<Record<string, string>>({})
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null)
+  const [childReplyText, setChildReplyText] = useState<string>('')
   const [isForumModalOpen, setIsForumModalOpen] = useState(false)
   const [forumTitle, setForumTitle] = useState('')
   const [forumQuestion, setForumQuestion] = useState('')
@@ -192,6 +194,7 @@ export default function CourseDetailPage() {
         profiles:author_id (first_name, last_name, role),
         forum_replies (
           id,
+          parent_id,
           content,
           created_at,
           author_id,
@@ -344,20 +347,26 @@ export default function CourseDetailPage() {
     }
   }
 
-  const handlePostReply = async (topicId: string) => {
-    const text = newReplyContent[topicId]?.trim()
+const handlePostReply = async (topicId: string, parentId: string | null = null) => {
+    const text = parentId ? childReplyText.trim() : (newReplyContent[topicId] || '').trim()
     if (!text || !currentUser) return
 
     const { error } = await supabase.from('forum_replies').insert({
       topic_id: topicId,
       author_id: currentUser.id,
-      content: text
+      content: text,
+      parent_id: parentId
     })
 
     if (error) {
       alert('Error al responder: ' + error.message)
     } else {
-      setNewReplyContent((prev) => ({ ...prev, [topicId]: '' }))
+      if (parentId) {
+        setChildReplyText('')
+        setReplyingToCommentId(null)
+      } else {
+        setNewReplyContent((prev) => ({ ...prev, [topicId]: '' }))
+      }
       await loadCourseDetails()
     }
   }
@@ -1487,64 +1496,175 @@ export default function CourseDetailPage() {
                         )}
                       </div>
 
-                      <div className="mt-5 space-y-3">
+                      <div className="mt-5 space-y-4">
                         <h5 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                           Intervenciones ({topic.forum_replies?.length || 0})
                         </h5>
 
                         {topic.forum_replies && topic.forum_replies.length > 0 ? (
-                          <div className="space-y-2.5">
-                            {topic.forum_replies.map((reply: any) => {
-                              const likes = reply.forum_reply_likes || []
-                              const hasLiked = likes.some((l: any) => l.user_id === currentUser?.id)
-                              const isMyReply = reply.author_id === currentUser?.id
+                          <div className="space-y-3">
+                            {/* Mostramos primero las intervenciones principales */}
+                            {topic.forum_replies
+                              .filter((r: any) => !r.parent_id)
+                              .map((reply: any) => {
+                                const likes = reply.forum_reply_likes || []
+                                const hasLiked = likes.some((l: any) => l.user_id === currentUser?.id)
+                                const isMyReply = reply.author_id === currentUser?.id
+                                
+                                // Respuestas anidadas a este comentario específico
+                                const childReplies = topic.forum_replies.filter((c: any) => c.parent_id === reply.id)
 
-                              return (
-                                <div key={reply.id} className="p-4 bg-slate-50/70 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-extrabold text-slate-800">
-                                        {reply.profiles?.first_name} {reply.profiles?.last_name}
-                                      </span>
-                                      <span className="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.2 rounded uppercase">
-                                        {reply.profiles?.role === 'teacher' ? 'Docente' : 'Estudiante'}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400">
-                                        {new Date(reply.created_at).toLocaleDateString()}
-                                      </span>
+                                return (
+                                  <div key={reply.id} className="space-y-2.5">
+                                    {/* Comentario Principal */}
+                                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-extrabold text-slate-800">
+                                            {reply.profiles?.first_name} {reply.profiles?.last_name}
+                                          </span>
+                                          <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.2 rounded uppercase">
+                                            {reply.profiles?.role === 'teacher' ? 'Docente' : 'Estudiante'}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400">
+                                            {new Date(reply.created_at).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-line">
+                                          {reply.content}
+                                        </p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                        {!isClosed && (
+                                          <button
+                                            onClick={() => {
+                                              setReplyingToCommentId(replyingToCommentId === reply.id ? null : reply.id)
+                                              setChildReplyText('')
+                                            }}
+                                            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+                                          >
+                                            <MessageSquare className="w-3 h-3" />
+                                            Responder
+                                          </button>
+                                        )}
+
+                                        <button
+                                          onClick={() => handleToggleLike(reply.id, likes)}
+                                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                                            hasLiked
+                                              ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                              : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+                                          }`}
+                                          title="Me gusta"
+                                        >
+                                          <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                          <span>{likes.length}</span>
+                                        </button>
+
+                                        {(isMyReply || userProfile?.role === 'teacher') && (
+                                          <button
+                                            onClick={() => handleDeleteReply(reply.id)}
+                                            className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                                            title="Eliminar intervención"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
-                                    <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-line">
-                                      {reply.content}
-                                    </p>
-                                  </div>
 
-                                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                                    <button
-                                      onClick={() => handleToggleLike(reply.id, likes)}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                                        hasLiked
-                                          ? 'bg-rose-50 border-rose-200 text-rose-600'
-                                          : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
-                                      }`}
-                                      title="Me gusta anónimo"
-                                    >
-                                      <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                                      <span>{likes.length}</span>
-                                    </button>
+                                    {/* Cajita para responder directo a este compañero */}
+                                    {replyingToCommentId === reply.id && !isClosed && (
+                                      <div className="ml-6 sm:ml-10 p-3 bg-emerald-50/60 border-l-4 border-emerald-600 rounded-xl flex gap-2 items-center">
+                                        <input
+                                          type="text"
+                                          autoFocus
+                                          placeholder={`Responde o debate a ${reply.profiles?.first_name}...`}
+                                          value={childReplyText}
+                                          onChange={(e) => setChildReplyText(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handlePostReply(topic.id, reply.id)
+                                          }}
+                                          className="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-700 font-medium"
+                                        />
+                                        <button
+                                          onClick={() => handlePostReply(topic.id, reply.id)}
+                                          className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-2 rounded-lg transition cursor-pointer shadow-xs flex items-center gap-1"
+                                        >
+                                          <Send className="w-3 h-3" />
+                                          Enviar
+                                        </button>
+                                        <button
+                                          onClick={() => setReplyingToCommentId(null)}
+                                          className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 cursor-pointer"
+                                        >
+                                          Cancelar
+                                        </button>
+                                      </div>
+                                    )}
 
-                                    {(isMyReply || userProfile?.role === 'teacher') && (
-                                      <button
-                                        onClick={() => handleDeleteReply(reply.id)}
-                                        className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                                        title="Eliminar intervención"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                    {/* Réplicas secundarias anidadas */}
+                                    {childReplies.length > 0 && (
+                                      <div className="ml-6 sm:ml-10 space-y-2 border-l-2 border-emerald-200 pl-3">
+                                        {childReplies.map((child: any) => {
+                                          const childLikes = child.forum_reply_likes || []
+                                          const childHasLiked = childLikes.some((l: any) => l.user_id === currentUser?.id)
+                                          const isMyChildReply = child.author_id === currentUser?.id
+
+                                          return (
+                                            <div
+                                              key={child.id}
+                                              className="p-3 bg-white rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs shadow-2xs"
+                                            >
+                                              <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                  <span className="font-bold text-slate-800">
+                                                    {child.profiles?.first_name} {child.profiles?.last_name}
+                                                  </span>
+                                                  <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.2 rounded uppercase">
+                                                    {child.profiles?.role === 'teacher' ? 'Docente' : 'Estudiante'}
+                                                  </span>
+                                                  <span className="text-[10px] text-slate-400">
+                                                    {new Date(child.created_at).toLocaleDateString()}
+                                                  </span>
+                                                </div>
+                                                <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-line">
+                                                  {child.content}
+                                                </p>
+                                              </div>
+
+                                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                                <button
+                                                  onClick={() => handleToggleLike(child.id, childLikes)}
+                                                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                                    childHasLiked
+                                                      ? 'bg-rose-50 border-rose-200 text-rose-600'
+                                                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-rose-600'
+                                                  }`}
+                                                >
+                                                  <Heart className={`w-3 h-3 ${childHasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                                  <span>{childLikes.length}</span>
+                                                </button>
+
+                                                {(isMyChildReply || userProfile?.role === 'teacher') && (
+                                                  <button
+                                                    onClick={() => handleDeleteReply(child.id)}
+                                                    className="text-slate-300 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition cursor-pointer"
+                                                    title="Eliminar réplica"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
                                     )}
                                   </div>
-                                </div>
-                              )
-                            })}
+                                )
+                              })}
                           </div>
                         ) : (
                           <p className="text-xs text-slate-400 italic py-2">
@@ -1552,11 +1672,12 @@ export default function CourseDetailPage() {
                           </p>
                         )}
 
+                        {/* Input general para aporte nuevo al debate */}
                         {!isClosed ? (
-                          <div className="mt-4 pt-3 flex gap-2">
+                          <div className="mt-4 pt-3 flex gap-2 border-t border-slate-100">
                             <input
                               type="text"
-                              placeholder="Escribe tu argumento o respuesta..."
+                              placeholder="Escribe tu argumento principal..."
                               value={newReplyContent[topic.id] || ''}
                               onChange={(e) =>
                                 setNewReplyContent((prev) => ({
@@ -1567,7 +1688,7 @@ export default function CourseDetailPage() {
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handlePostReply(topic.id)
                               }}
-                              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none font-medium"
                             />
                             <button
                               onClick={() => handlePostReply(topic.id)}
