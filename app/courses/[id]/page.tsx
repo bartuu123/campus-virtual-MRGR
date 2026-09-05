@@ -1314,30 +1314,32 @@ const handlePostReply = async (topicId: string, parentId: string | null = null) 
                   const mySubmission = assign.submissions?.find((s: any) => s.student_id === currentUser?.id)
                   
                   return (
-                    <div key={assign.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
-                                Evaluación
-                              </span>
-                              <h4 className="text-sm font-extrabold text-slate-900">{assign.title}</h4>
-                            </div>
+                    <div key={assign.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative">
+                      {/* Botón Eliminar para el Docente en la esquina superior derecha */}
+                      {userProfile?.role === 'teacher' && (
+                        <div className="flex justify-end mb-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAssignment(assign.id, assign.title)}
+                            className="flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                            title="Eliminar tarea"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar Tarea
+                          </button>
+                        </div>
+                      )}
 
-                            {userProfile?.role === 'teacher' && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAssignment(assign.id, assign.title)}
-                                className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                title="Eliminar tarea"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
+                              Evaluación
+                            </span>
+                            <h4 className="text-sm font-extrabold text-slate-900">{assign.title}</h4>
                           </div>
 
-                          <p className="text-xs text-slate-600 mt-2 max-w-2xl leading-relaxed">
+                          <p className="text-xs text-slate-600 mt-2 max-w-2xl leading-relaxed whitespace-pre-line">
                             {assign.description}
                           </p>
 
